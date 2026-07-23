@@ -37,6 +37,30 @@ fi
 
 echo "==> Releasing v$NEW (current $CURRENT)"
 
+# The website carries the required CLI version as a compiled constant, so it has
+# to be deployed with this version BEFORE the release exists. Get that backwards
+# and every CLI is refused while being told to upgrade to something it cannot
+# download yet.
+#
+# Checked rather than trusted to memory, because the failure is silent until
+# somebody tries to use the CLI. Set SKIP_SITE_CHECK=1 to release anyway.
+SITE="${STACKDRIFT_URL:-https://stackdrift.net}"
+if [ -z "${SKIP_SITE_CHECK:-}" ]; then
+  echo "==> Checking $SITE already expects v$NEW"
+  site_requires="$(curl -fsS "$SITE/api/cli/version" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['requiredVersion'])" 2>/dev/null || true)"
+
+  if [ -z "$site_requires" ]; then
+    echo "    could not ask $SITE which version it requires; continuing" >&2
+  elif [ "$site_requires" != "$NEW" ]; then
+    echo "    $SITE requires $site_requires, not $NEW." >&2
+    echo "    Bump CliVersions.Required to $NEW and deploy the website first, then re-run this." >&2
+    echo "    (SKIP_SITE_CHECK=1 overrides.)" >&2
+    exit 1
+  else
+    echo "    ok"
+  fi
+fi
+
 if git rev-parse "v$NEW" >/dev/null 2>&1; then
   echo "Tag v$NEW already exists" >&2
   exit 1
@@ -79,25 +103,3 @@ done
 
 echo "==> Released: https://github.com/$REPO/releases/tag/v$NEW"
 
-# The website works out which CLI is current by reading this release feed, and
-# it caches that. Telling it now closes the window where a build that has just
-# been superseded is still accepted, which would otherwise last until the cache
-# next turned over.
-#
-# Deliberately after the uploads: the requirement must never name a version that
-# cannot yet be downloaded.
-SITE="${STACKDRIFT_URL:-https://stackdrift.net}"
-CREDENTIALS="${XDG_CONFIG_HOME:-$HOME/.config}/stackdrift/credentials.json"
-
-SITE_TOKEN=""
-if [ -f "$CREDENTIALS" ]; then
-  SITE_TOKEN="$(jq -r --arg url "$SITE" '(.credentials // [])[] | select(.baseUrl == $url) | .token' "$CREDENTIALS" 2>/dev/null | head -1)"
-fi
-
-if [ -z "$SITE_TOKEN" ] || [ "$SITE_TOKEN" = "null" ]; then
-  echo "==> No saved credential for $SITE; it will notice the release on its own within the cache window."
-elif refreshed="$(curl -fsS -X POST -H "Authorization: Bearer $SITE_TOKEN" "$SITE/api/cli/version/refresh" 2>/dev/null)"; then
-  echo "==> $SITE now requires $(printf '%s' "$refreshed" | python3 -c "import sys,json; print(json.load(sys.stdin)['requiredVersion'])")"
-else
-  echo "==> Could not tell $SITE about the release; it will notice on its own within the cache window." >&2
-fi
