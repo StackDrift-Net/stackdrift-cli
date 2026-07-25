@@ -12,6 +12,14 @@ import (
 
 var version = "dev"
 
+// check exits exitFailure when it finds an advisory, which is its contract in a
+// pipeline, so a lapsed plan is given a code of its own. Sharing one would turn
+// a build red for a billing reason and have it triaged as a security finding.
+const (
+	exitFailure    = 1
+	exitPlanLapsed = 3
+)
+
 type command struct {
 	name    string
 	run     func([]string) error
@@ -60,7 +68,7 @@ func registry() map[string]command {
 func run(args []string, registry map[string]command, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		usage(stdout)
-		return 1
+		return exitFailure
 	}
 
 	name := args[0]
@@ -73,15 +81,23 @@ func run(args []string, registry map[string]command, stdout, stderr io.Writer) i
 	if !ok {
 		fmt.Fprintln(stderr, "unknown command: "+name)
 		usage(stdout)
-		return 1
+		return exitFailure
 	}
 
 	err := cmd.run(args[1:])
 
 	// Being behind is the one failure the same binary can never retry its way
-	// out of, so it updates itself and runs the command again.
+	// out of, so it updates itself and runs the command again. This stays ahead
+	// of every other reading of the failure, so a build that is both stale and
+	// locked out can still upgrade itself.
 	if api.IsUpgradeRequired(err) && !alreadyUpgraded() {
 		return upgradeAndRerun(args, stdout, stderr, err)
+	}
+
+	if commands.IsSubscriptionLapsed(err) {
+		fmt.Fprintln(stderr, "error: "+err.Error())
+		fmt.Fprintln(stderr, "Reading and removing still work. Reactivate your plan at "+config.BaseURL()+"/billing")
+		return exitPlanLapsed
 	}
 
 	// A token can be revoked between the startup check and any call that
@@ -89,7 +105,7 @@ func run(args []string, registry map[string]command, stdout, stderr io.Writer) i
 	// a rejection rather than reporting it as a plain request error.
 	if err := commands.ExpireSession(err); err != nil {
 		fmt.Fprintln(stderr, "error: "+err.Error())
-		return 1
+		return exitFailure
 	}
 	return 0
 }

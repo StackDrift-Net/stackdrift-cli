@@ -25,9 +25,15 @@ type Client struct {
 	http    *http.Client
 }
 
+// ReasonSubscriptionRequired is the "reason" the server puts on the body when a
+// write is refused because the plan has lapsed. The same status carries other
+// billing refusals, so the reason is what tells them apart.
+const ReasonSubscriptionRequired = "subscription_required"
+
 type Error struct {
 	Status  int
 	Message string
+	Reason  string
 }
 
 func (e *Error) Error() string {
@@ -50,6 +56,21 @@ func IsUpgradeRequired(err error) bool {
 func IsUnauthorized(err error) bool {
 	var apiErr *Error
 	return errors.As(err, &apiErr) && apiErr.Status == http.StatusUnauthorized
+}
+
+// IsSubscriptionLapsed reports whether the server refused a write because the
+// account's plan has fully lapsed, which no retry can fix and which reads and
+// deletes are deliberately not subject to.
+func IsSubscriptionLapsed(err error) bool {
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusPaymentRequired {
+		return false
+	}
+	// A body naming a different billing reason is a different refusal, such as
+	// an unconfirmed plan change. A 402 carrying no reason came from something
+	// that dropped the extension, and a lapsed plan is the only thing the CLI's
+	// own calls can be refused with.
+	return apiErr.Reason == "" || apiErr.Reason == ReasonSubscriptionRequired
 }
 
 func New(baseURL, token string) *Client {
@@ -92,7 +113,11 @@ func (c *Client) do(method, path string, body any, out any) error {
 	data, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return &Error{Status: resp.StatusCode, Message: extractMessage(data, resp.StatusCode)}
+		return &Error{
+			Status:  resp.StatusCode,
+			Message: extractMessage(data, resp.StatusCode),
+			Reason:  extractReason(data),
+		}
 	}
 
 	if out != nil && len(data) > 0 {
@@ -161,5 +186,20 @@ func extractMessage(data []byte, status int) string {
 	if status == http.StatusUnauthorized {
 		return "not signed in, run: stackdrift login"
 	}
+	if status == http.StatusPaymentRequired {
+		return "your StackDrift plan has lapsed, so changes are refused"
+	}
 	return fmt.Sprintf("request failed with status %d", status)
+}
+
+// The reason is an RFC 9457 extension rather than a member, so it is read on
+// its own instead of widening what picks the message to show.
+func extractReason(data []byte) string {
+	var problem struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(data, &problem); err != nil {
+		return ""
+	}
+	return problem.Reason
 }

@@ -9,6 +9,8 @@ import (
 
 var errSessionExpired = errors.New("your session is no longer valid, run: stackdrift login")
 
+var errSubscriptionLapsed = errors.New("your StackDrift plan has lapsed, so changes are refused")
+
 // A token lasts 90 days and can be revoked from the website at any time, so
 // holding one on disk is not proof of a session. Commands are checked before
 // they start because the expensive part of a run is local: scan walks the whole
@@ -44,6 +46,13 @@ func ExpireSession(err error) error {
 
 	clearRejectedCredential(config.BaseURL())
 	return errSessionExpired
+}
+
+// IsSubscriptionLapsed reports whether a failure is the lapsed-plan refusal,
+// whether it was caught by the pre-flight check or by the server turning a
+// write away part way through a run.
+func IsSubscriptionLapsed(err error) bool {
+	return errors.Is(err, errSubscriptionLapsed) || api.IsSubscriptionLapsed(err)
 }
 
 // Only ever called once the server has rejected the token, so the stored copy

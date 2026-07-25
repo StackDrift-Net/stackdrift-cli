@@ -15,6 +15,10 @@ import (
 func signedIn(t *testing.T, handler http.HandlerFunc) string {
 	t.Helper()
 	t.Setenv("STACKDRIFT_HOME", t.TempDir())
+	// Credentials live in the user config directory rather than the store, so
+	// that is isolated too. Without it a test run appends throwaway tokens to
+	// the credentials file of whoever is running it.
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	server := httptest.NewServer(handler)
 	t.Cleanup(server.Close)
 	t.Setenv("STACKDRIFT_URL", server.URL)

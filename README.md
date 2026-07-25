@@ -127,6 +127,27 @@ This prints the CVE status of the project and exits with a non-zero code if any
 tracked technology or dependency has a known CVE. Use it in a pipeline to fail a
 build when a new advisory appears.
 
+## Exit codes
+
+Every command uses the same codes, so a pipeline can tell a security finding
+apart from a billing one:
+
+```
+0  success
+1  the command failed, which is also how check reports that it found a CVE
+3  the account's plan has lapsed, so the change was refused
+```
+
+Code 3 is never a security result. A lapsed plan stops changes only, so
+`status`, `check`, and `remove` keep working and can never return it. Only a
+command that writes, such as `scan`, is refused, and it is refused before it
+scans anything. The plan can be reactivated on the billing page. To treat that
+refusal as a warning rather than a failed build:
+
+```
+stackdrift scan --yes || [ $? -eq 3 ]
+```
+
 ## What it detects
 
 Technologies:

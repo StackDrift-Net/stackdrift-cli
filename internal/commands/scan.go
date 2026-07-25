@@ -14,7 +14,7 @@ import (
 func Scan(args []string) error {
 	assumeYes := hasFlag(args, "--yes", "-y")
 
-	client, _, err := authenticatedClient()
+	client, _, err := writableClient()
 	if err != nil {
 		return err
 	}

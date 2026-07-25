@@ -5,6 +5,10 @@ type Me struct {
 	Email         string `json:"email"`
 	UserID        string `json:"userId"`
 	IsAdmin       bool   `json:"isAdmin"`
+	// True once the plan has fully lapsed, which is the point the server starts
+	// refusing writes. An unpaid plan still inside its grace window is not
+	// locked out and does not set this.
+	SubscriptionLocked bool `json:"subscriptionLocked"`
 }
 
 type Technology struct {

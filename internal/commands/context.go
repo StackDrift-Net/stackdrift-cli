@@ -22,6 +22,22 @@ func authenticatedClient() (*api.Client, string, error) {
 	return client, baseURL, err
 }
 
+// writableClient is for the commands that change the project. A lapsed plan is
+// read from the session check that already runs, for the same reason the token
+// is: scan walks the whole filesystem and asks two questions before it writes
+// anything, and applying can fail part way and leave the project half updated.
+// Reads and deletes stay open when locked out, so they must not use this.
+func writableClient() (*api.Client, string, error) {
+	client, baseURL, me, err := authenticatedSession()
+	if err != nil {
+		return nil, baseURL, err
+	}
+	if me.SubscriptionLocked {
+		return nil, baseURL, errSubscriptionLapsed
+	}
+	return client, baseURL, nil
+}
+
 // Returns the account alongside the client so a command that needs it does not
 // pay for a second round trip to ask again.
 func authenticatedSession() (*api.Client, string, *api.Me, error) {
