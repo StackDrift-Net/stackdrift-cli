@@ -162,6 +162,7 @@ func usage(out io.Writer) {
 		}
 		fmt.Fprintf(out, "  %-11s %s\n", c.name, c.help)
 	}
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, "Set STACKDRIFT_URL to point at a different server.")
+	// STACKDRIFT_URL still works and is deliberately not advertised here. It
+	// points the CLI at staging, which is ours to test against rather than
+	// something to invite users to reconfigure.
 }

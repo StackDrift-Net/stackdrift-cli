@@ -132,6 +132,17 @@ func TestUsage_DescribesEveryVisibleCommand(t *testing.T) {
 	}
 }
 
+// The override stays, the advertisement does not. It exists to point the CLI
+// at staging, which is not something to put in front of users.
+func TestUsage_DoesNotAdvertiseTheServerOverride(t *testing.T) {
+	var out bytes.Buffer
+	usage(&out)
+
+	if strings.Contains(out.String(), "STACKDRIFT_URL") {
+		t.Fatalf("expected the server override kept out of the usage text, got %q", out.String())
+	}
+}
+
 func TestUsage_HidesInternalCommands(t *testing.T) {
 	var out bytes.Buffer
 	usage(&out)
