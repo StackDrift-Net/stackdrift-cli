@@ -37,27 +37,46 @@ fi
 
 echo "==> Releasing v$NEW (current $CURRENT)"
 
-# The website carries the required CLI version as a compiled constant, so it has
-# to be deployed with this version BEFORE the release exists. Get that backwards
-# and every CLI is refused while being told to upgrade to something it cannot
-# download yet.
+# The website carries two compiled constants. Latest is the newest release and
+# moves every time, so it must already name this version before the release
+# exists. Required is the OLDEST supported build and usually does not move at
+# all; it only has to not be newer than what we are cutting, which would mean
+# the site refuses the very release being published.
 #
 # Checked rather than trusted to memory, because the failure is silent until
 # somebody tries to use the CLI. Set SKIP_SITE_CHECK=1 to release anyway.
 SITE="${STACKDRIFT_URL:-https://stackdrift.net}"
 if [ -z "${SKIP_SITE_CHECK:-}" ]; then
   echo "==> Checking $SITE already expects v$NEW"
-  site_requires="$(curl -fsS "$SITE/api/cli/version" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['requiredVersion'])" 2>/dev/null || true)"
+  site_json="$(curl -fsS "$SITE/api/cli/version" 2>/dev/null || true)"
+  site_latest="$(printf '%s' "$site_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('latestVersion',''))" 2>/dev/null || true)"
+  site_requires="$(printf '%s' "$site_json" | python3 -c "import sys,json; print(json.load(sys.stdin).get('requiredVersion',''))" 2>/dev/null || true)"
 
-  if [ -z "$site_requires" ]; then
-    echo "    could not ask $SITE which version it requires; continuing" >&2
-  elif [ "$site_requires" != "$NEW" ]; then
-    echo "    $SITE requires $site_requires, not $NEW." >&2
-    echo "    Bump CliVersions.Required to $NEW and deploy the website first, then re-run this." >&2
+  newer() { python3 -c "
+import sys
+def parse(v): return [int(p) for p in v.strip().lstrip('v').split('.') if p.isdigit()]
+a, b = parse(sys.argv[1]), parse(sys.argv[2])
+a += [0] * (len(b) - len(a)); b += [0] * (len(a) - len(b))
+sys.exit(0 if a > b else 1)
+" "$1" "$2"; }
+
+  if [ -z "$site_latest" ] && [ -z "$site_requires" ]; then
+    echo "    could not ask $SITE which version it expects; continuing" >&2
+  elif [ -z "$site_latest" ]; then
+    echo "    $SITE does not report latestVersion yet, so it predates the Required/Latest split." >&2
+    echo "    Deploy the website first, then re-run this. (SKIP_SITE_CHECK=1 overrides.)" >&2
+    exit 1
+  elif [ "$site_latest" != "$NEW" ]; then
+    echo "    $SITE says the latest release is $site_latest, not $NEW." >&2
+    echo "    Set CliVersions.Latest to $NEW and deploy the website first, then re-run this." >&2
     echo "    (SKIP_SITE_CHECK=1 overrides.)" >&2
     exit 1
+  elif newer "$site_requires" "$NEW"; then
+    echo "    $SITE requires at least $site_requires, which is newer than $NEW." >&2
+    echo "    The site would refuse the release being cut. Fix CliVersions.Required first." >&2
+    exit 1
   else
-    echo "    ok"
+    echo "    ok (latest $site_latest, minimum supported $site_requires)"
   fi
 fi
 
