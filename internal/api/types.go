@@ -77,6 +77,17 @@ type UploadManifestsResponse struct {
 	EmptyFiles       []string          `json:"emptyFiles"`
 }
 
+// One dependency group, named the way the person who uploaded it named it
+// rather than by its ecosystem. Counts cover the whole group, not a page of it.
+type ProjectGroupStat struct {
+	GroupID       int    `json:"groupId"`
+	Name          string `json:"name"`
+	Ecosystem     string `json:"ecosystem"`
+	PackageCount  int    `json:"packageCount"`
+	OutdatedCount int    `json:"outdatedCount"`
+	UnknownCount  int    `json:"unknownCount"`
+}
+
 type ProjectStats struct {
 	TechnologyCount           int `json:"technologyCount"`
 	EndOfLifeCount            int `json:"endOfLifeCount"`
@@ -84,6 +95,9 @@ type ProjectStats struct {
 	DependencyCount           int `json:"dependencyCount"`
 	VulnerableDependencyCount int `json:"vulnerableDependencyCount"`
 	DependencyCveCount        int `json:"dependencyCveCount"`
+	// Absent from an older server, which decodes to nil and simply prints
+	// nothing rather than claiming every group is clean.
+	Groups []ProjectGroupStat `json:"groups"`
 }
 
 type DeviceAuthorization struct {
