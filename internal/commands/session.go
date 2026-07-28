@@ -11,6 +11,11 @@ var errSessionExpired = errors.New("your session is no longer valid, run: stackd
 
 var errSubscriptionLapsed = errors.New("your StackDrift plan has lapsed, so changes are refused")
 
+// The same refusal, for an account that has never held a plan at all. There is
+// nothing lapsed about it, and saying so to somebody on their first scan is
+// simply wrong.
+var errNoPlan = errors.New("your StackDrift account has no active plan, so changes are refused")
+
 // A token lasts 90 days and can be revoked from the website at any time, so
 // holding one on disk is not proof of a session. Commands are checked before
 // they start because the expensive part of a run is local: scan walks the whole
@@ -48,11 +53,22 @@ func ExpireSession(err error) error {
 	return errSessionExpired
 }
 
-// IsSubscriptionLapsed reports whether a failure is the lapsed-plan refusal,
-// whether it was caught by the pre-flight check or by the server turning a
-// write away part way through a run.
-func IsSubscriptionLapsed(err error) bool {
-	return errors.Is(err, errSubscriptionLapsed) || api.IsSubscriptionLapsed(err)
+// IsPlanRequired reports whether a failure is the no-plan refusal, whether it
+// was caught by the pre-flight check or by the server turning a write away part
+// way through a run. Both wordings answer yes, because the exit code is about
+// what stopped the command, not about who the account is.
+func IsPlanRequired(err error) bool {
+	return errors.Is(err, errSubscriptionLapsed) || errors.Is(err, errNoPlan) || api.IsSubscriptionLapsed(err)
+}
+
+// What to say after the refusal. Keeping the reads and removes open is worth
+// telling somebody who has projects to read, and an account that never
+// subscribed has none, so all it needs is where to go.
+func PlanHint(err error, baseURL string) string {
+	if errors.Is(err, errNoPlan) {
+		return "Pick a plan at " + baseURL + "/billing"
+	}
+	return "Reading and removing still work. Reactivate your plan at " + baseURL + "/billing"
 }
 
 // Only ever called once the server has rejected the token, so the stored copy

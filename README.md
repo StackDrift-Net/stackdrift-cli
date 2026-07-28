@@ -135,14 +135,15 @@ apart from a billing one:
 ```
 0  success
 1  the command failed, which is also how check reports that it found a CVE
-3  the account's plan has lapsed, so the change was refused
+3  the account has no active plan, so the change was refused
 ```
 
-Code 3 is never a security result. A lapsed plan stops changes only, so
-`status`, `check`, and `remove` keep working and can never return it. Only a
+Code 3 is never a security result. It covers an account that has never chosen a
+plan as well as one whose plan has lapsed, and either way it stops changes only,
+so `status`, `check`, and `remove` keep working and can never return it. Only a
 command that writes, such as `scan`, is refused, and it is refused before it
-scans anything. The plan can be reactivated on the billing page. To treat that
-refusal as a warning rather than a failed build:
+scans anything. A plan can be chosen or reactivated on the billing page. To
+treat that refusal as a warning rather than a failed build:
 
 ```
 stackdrift scan --yes || [ $? -eq 3 ]

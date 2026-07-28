@@ -33,6 +33,9 @@ func writableClient() (*api.Client, string, error) {
 		return nil, baseURL, err
 	}
 	if me.SubscriptionLocked {
+		if !me.HasEverSubscribed {
+			return nil, baseURL, errNoPlan
+		}
 		return nil, baseURL, errSubscriptionLapsed
 	}
 	return client, baseURL, nil

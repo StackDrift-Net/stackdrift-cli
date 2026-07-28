@@ -9,6 +9,10 @@ type Me struct {
 	// refusing writes. An unpaid plan still inside its grace window is not
 	// locked out and does not set this.
 	SubscriptionLocked bool `json:"subscriptionLocked"`
+	// Locked out is the same verdict for an account that never had a plan and
+	// one that lost it, and only this tells them apart. Without it the CLI told
+	// somebody who signed up a minute ago that their plan had lapsed.
+	HasEverSubscribed bool `json:"hasEverSubscribed"`
 }
 
 type Technology struct {

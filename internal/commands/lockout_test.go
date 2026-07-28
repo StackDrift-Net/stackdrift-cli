@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -50,8 +51,8 @@ func TestWritableClient_LiveSessionOnAPaidPlan_ReturnsAClient(t *testing.T) {
 	}
 }
 
-func TestWritableClient_LockedOutAccount_RefusesBeforeReturningAClient(t *testing.T) {
-	recordingServer(t, `{"authenticated":true,"email":"a@b.c","subscriptionLocked":true}`, nil)
+func TestWritableClient_LapsedAccount_RefusesBeforeReturningAClient(t *testing.T) {
+	recordingServer(t, `{"authenticated":true,"email":"a@b.c","subscriptionLocked":true,"hasEverSubscribed":true}`, nil)
 
 	client, _, err := writableClient()
 
@@ -60,6 +61,54 @@ func TestWritableClient_LockedOutAccount_RefusesBeforeReturningAClient(t *testin
 	}
 	if client != nil {
 		t.Fatal("expected no client back for a locked out account")
+	}
+}
+
+// Locked out is the same verdict either way, but somebody on their first scan
+// has not let anything lapse. Telling them so was the CLI half of the same bug
+// the website had.
+func TestWritableClient_AccountThatNeverSubscribed_DoesNotSayAnythingLapsed(t *testing.T) {
+	recordingServer(t, `{"authenticated":true,"email":"a@b.c","subscriptionLocked":true,"hasEverSubscribed":false}`, nil)
+
+	client, _, err := writableClient()
+
+	if !errors.Is(err, errNoPlan) {
+		t.Fatalf("expected the no plan refusal, got %v", err)
+	}
+	if strings.Contains(err.Error(), "lapsed") {
+		t.Fatalf("a new account must not be told anything lapsed, got %q", err)
+	}
+	if client != nil {
+		t.Fatal("expected no client back for a locked out account")
+	}
+}
+
+// Both are refusals for want of a plan, so both must stop the command with the
+// billing exit code rather than being read as an ordinary failure.
+func TestIsPlanRequired_NoPlanRefusal_IsRecognised(t *testing.T) {
+	if !IsPlanRequired(errNoPlan) {
+		t.Fatal("expected the no plan refusal recognised")
+	}
+}
+
+func TestPlanHint_NeverSubscribed_OffersAPlanRatherThanAReactivation(t *testing.T) {
+	hint := PlanHint(errNoPlan, "https://stackdrift.net")
+
+	if strings.Contains(hint, "Reactivate") {
+		t.Fatalf("a new account has nothing to reactivate, got %q", hint)
+	}
+	if !strings.Contains(hint, "https://stackdrift.net/billing") {
+		t.Fatalf("expected the billing page in the hint, got %q", hint)
+	}
+}
+
+// The other half: somebody who really did lapse still needs to know their reads
+// and removes are open, which is how they get back under a smaller plan.
+func TestPlanHint_Lapsed_StillSaysReadsAndRemovesWork(t *testing.T) {
+	hint := PlanHint(errSubscriptionLapsed, "https://stackdrift.net")
+
+	if !strings.Contains(hint, "Reading and removing still work") {
+		t.Fatalf("expected the read and remove reassurance, got %q", hint)
 	}
 }
 
@@ -96,7 +145,7 @@ func TestScan_LockedOutAccount_StopsBeforeTouchingAnything(t *testing.T) {
 
 	err := Scan([]string{"--yes"})
 
-	if !IsSubscriptionLapsed(err) {
+	if !IsPlanRequired(err) {
 		t.Fatalf("expected the lapsed plan refusal, got %v", err)
 	}
 	if len(*paths) != 0 {
@@ -147,26 +196,26 @@ func TestCheck_LockedOutAccountWithACve_StillFailsForTheCve(t *testing.T) {
 	if !errors.As(err, &cveErr) {
 		t.Fatalf("expected the CVE result, got %v", err)
 	}
-	if IsSubscriptionLapsed(err) {
+	if IsPlanRequired(err) {
 		t.Fatal("a CVE result must never be reported as a lapsed plan")
 	}
 }
 
-func TestIsSubscriptionLapsed_PreflightRefusal_IsRecognised(t *testing.T) {
-	if !IsSubscriptionLapsed(errSubscriptionLapsed) {
+func TestIsPlanRequired_PreflightRefusal_IsRecognised(t *testing.T) {
+	if !IsPlanRequired(errSubscriptionLapsed) {
 		t.Fatal("expected the pre-flight refusal recognised")
 	}
 }
 
 // A token revoked mid-run and a write refused mid-run are different failures
 // with different answers, so neither may be read as the other.
-func TestIsSubscriptionLapsed_ExpiredSession_IsNot(t *testing.T) {
-	if IsSubscriptionLapsed(errSessionExpired) {
+func TestIsPlanRequired_ExpiredSession_IsNot(t *testing.T) {
+	if IsPlanRequired(errSessionExpired) {
 		t.Fatal("an expired session must not be read as a lapsed plan")
 	}
 }
 
-func TestIsSubscriptionLapsed_ServerRefusedAWriteMidRun_IsRecognised(t *testing.T) {
+func TestIsPlanRequired_ServerRefusedAWriteMidRun_IsRecognised(t *testing.T) {
 	baseURL := signedIn(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusPaymentRequired)
 		_, _ = w.Write([]byte(`{"status":402,"reason":"subscription_required"}`))
@@ -174,13 +223,13 @@ func TestIsSubscriptionLapsed_ServerRefusedAWriteMidRun_IsRecognised(t *testing.
 
 	err := api.New(baseURL, "stored-token").SetKernel(3, "6.8.0")
 
-	if !IsSubscriptionLapsed(err) {
+	if !IsPlanRequired(err) {
 		t.Fatalf("expected the server refusal recognised, got %v", err)
 	}
 }
 
-func TestIsSubscriptionLapsed_NoError_IsFalse(t *testing.T) {
-	if IsSubscriptionLapsed(nil) {
+func TestIsPlanRequired_NoError_IsFalse(t *testing.T) {
+	if IsPlanRequired(nil) {
 		t.Fatal("nil must not be read as a lapsed plan")
 	}
 }
@@ -197,7 +246,7 @@ func TestExpireSession_LapsedPlan_IsLeftAloneAndKeepsTheCredential(t *testing.T)
 
 	err := ExpireSession(callErr)
 
-	if !IsSubscriptionLapsed(err) {
+	if !IsPlanRequired(err) {
 		t.Fatalf("expected the refusal to pass through unchanged, got %v", err)
 	}
 	if token := storedToken(t, baseURL); token != "stored-token" {

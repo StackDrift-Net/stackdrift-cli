@@ -94,9 +94,9 @@ func run(args []string, registry map[string]command, stdout, stderr io.Writer) i
 		return upgradeAndRerun(args, stdout, stderr, err)
 	}
 
-	if commands.IsSubscriptionLapsed(err) {
+	if commands.IsPlanRequired(err) {
 		fmt.Fprintln(stderr, "error: "+err.Error())
-		fmt.Fprintln(stderr, "Reading and removing still work. Reactivate your plan at "+config.BaseURL()+"/billing")
+		fmt.Fprintln(stderr, commands.PlanHint(err, config.BaseURL()))
 		return exitPlanLapsed
 	}
 
