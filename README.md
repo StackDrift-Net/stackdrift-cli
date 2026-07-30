@@ -117,6 +117,99 @@ stackdrift scan --yes
 
 This needs the project to be chosen once interactively in that directory first.
 
+## Keeping it up to date automatically
+
+After a scan the CLI offers to install a background service that notices when
+what you already track has moved, and updates the project for you. The answer is
+remembered per machine, including a no, so you are only asked once.
+
+```
+stackdrift service install     choose how often it checks
+stackdrift service status      show whether it is installed and running
+stackdrift service uninstall   remove it
+stackdrift watch               run one check now, in the foreground
+```
+
+Pick the interval when installing to skip the question:
+
+```
+stackdrift service install --interval hourly
+```
+
+Valid values are `realtime`, `5m`, `hourly`, `twicedaily`, `daily` and `weekly`.
+
+### What it will and will not do
+
+It keeps current what the project already tracks:
+
+- a tracked dependency group is re-uploaded when its manifest or lock file
+  contents change
+- a tracked technology is replaced when its version has **demonstrably** moved,
+  so advisories follow the version actually installed
+
+Demonstrably is the important word. It acts only where exactly one row of a
+technology is tracked and exactly one version of it is detected, and the two
+disagree. That is the only shape in which "this install moved" is the sole
+explanation. Every other shape is left alone:
+
+| what it sees | what it does |
+| --- | --- |
+| two tracked rows of one technology | nothing. Another machine, or the website, may own the second row |
+| two versions detected | nothing. A Dockerfile naming one release while the host runs another is not a move |
+| nothing detected | nothing. An unmounted volume and an uninstall look identical |
+| a scanned directory it could not read | nothing is retired that sweep, for any technology |
+| a version the catalog could not resolve | nothing for that technology, since the two sides are not comparable |
+
+The new version is always added **before** the old one is retired, so a crash or
+a network drop in between leaves the project tracking both rather than neither.
+The next sweep clears up the extra.
+
+It deliberately does not:
+
+- **add software you have not chosen.** A technology you were shown and left
+  unticked is indistinguishable from one you have never seen, so neither is
+  picked up. Run `stackdrift scan` again when you install something new.
+- **remove software.** The only row it ever deletes is one that a move has
+  already replaced. A technology that simply stops being detected is kept,
+  because dropping it would silently end the CVE alerts you installed this for.
+
+### What it costs
+
+Measured on the built binary, scanning a real project:
+
+| | memory | when |
+| --- | --- | --- |
+| Near realtime, waiting | ~12 MB resident | continuously |
+| Near realtime, checking | ~15 MB peak | only when a watched file has moved |
+| Any other interval | nothing resident | between checks |
+| One check | ~14 MB peak, under 0.1s | at each interval |
+| One check, 89 GB tree with 534 manifests | ~29 MB peak, 0.3s | worst case measured |
+
+Near realtime does not walk your tree every ten seconds. It stats the handful of
+files it already knows about, the manifests it read plus `/etc/os-release` and
+`/proc/version`, and only does real work when one of them has actually changed.
+A full walk still runs hourly to catch anything the watch set cannot see.
+
+Every interval other than near realtime is handed to the platform's own
+scheduler, so nothing of ours is running between two checks.
+
+The service runs at low priority and idle IO, so it yields to everything else.
+
+### Where it is installed
+
+| platform | mechanism | location |
+| --- | --- | --- |
+| Linux | systemd user service and timer | `~/.config/systemd/user/stackdrift-watch.*` |
+| macOS | launchd agent | `~/Library/LaunchAgents/net.stackdrift.watch.plist` |
+| Windows | scheduled task | `StackDrift Watch` |
+
+It runs as you, not as root, because the credentials it needs are in your own
+config directory. On Linux the installer also enables lingering so the service
+keeps running on a server nobody is logged in to.
+
+The systemd unit is confined: `ProtectSystem=strict`, `ProtectHome=read-only`,
+`NoNewPrivileges`, and exactly one writable path, `~/.stackdrift`.
+
 ## Check for CVEs in CI
 
 ```
@@ -186,6 +279,8 @@ snapshots of the whole site rather than anything you are running.
 stackdrift status      show the tracked technologies and dependencies
 stackdrift check       report CVE status and exit non-zero if any are found
 stackdrift remove      remove technologies or dependencies from the project
+stackdrift service     manage the background service that watches for changes
+stackdrift watch       check now for stack changes and update StackDrift
 stackdrift whoami      show the signed in account
 stackdrift update      download and install the latest release
 stackdrift completion  print a shell completion script

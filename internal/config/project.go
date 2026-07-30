@@ -24,6 +24,11 @@ type TrackedDependencyGroup struct {
 	Name      string   `json:"name"`
 	Ecosystem string   `json:"ecosystem"`
 	Manifests []string `json:"manifests"`
+
+	// Digest of the file contents last uploaded for this group. The watcher
+	// compares against it to decide whether a lock file has actually moved,
+	// rather than re-uploading every manifest on every sweep.
+	Digest string `json:"digest,omitempty"`
 }
 
 type ProjectConfig struct {

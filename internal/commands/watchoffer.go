@@ -1,0 +1,95 @@
+package commands
+
+import (
+	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/digitalaffinity-au/stackdrift-cli/internal/service"
+	"github.com/digitalaffinity-au/stackdrift-cli/internal/ui"
+)
+
+// Measured on the built binary, not estimated. A resident watcher settles here
+// because it hands the scan's memory back after every sweep; the peaks are what
+// one scan costs while it is running. The large tree figure is a 534 manifest,
+// 89 GB directory, which is far past anything typical. See the README.
+const (
+	residentMemory = "about 12 MB"
+	scanPeakMemory = "14 MB"
+	largeTreePeak  = "about 30 MB"
+)
+
+// offerWatchService puts the question once per machine and remembers the answer
+// either way. It is skipped entirely for --yes, because an unattended run has
+// nobody to answer and a CI job must not end up installing a service on a build
+// agent.
+func offerWatchService(assumeYes bool) {
+	if assumeYes || !service.Supported() {
+		return
+	}
+
+	settings := config.LoadWatch()
+	if settings.Asked {
+		return
+	}
+
+	ui.Println()
+	ui.Println("Keep this project up to date automatically?")
+	ui.Println("StackDrift can install a background " + serviceNoun() + " that notices when what you")
+	ui.Println("already track here moves: a package upgrade, a rewritten lock file, a new")
+	ui.Println("kernel or OS release. It updates the project for you, so the advisories")
+	ui.Println("you get are about the versions actually installed.")
+	ui.Println()
+	ui.Println("  It only ever updates what this project already tracks, and only where")
+	ui.Println("  the evidence is unambiguous. It never adds software you have not chosen,")
+	ui.Println("  and the only row it removes is one a version change has replaced. Run")
+	ui.Println("  scan again yourself when you install something new.")
+	ui.Println()
+	describeCost()
+	ui.Println()
+
+	if !ui.Confirm("Install it?", true) {
+		// Recorded as asked so the offer is not put again after every scan.
+		// Changing their mind is one command, which the decline says.
+		_ = config.SaveWatch(&config.WatchSettings{Asked: true, Enabled: false})
+		ui.Println("Not installed. Run 'stackdrift service install' if you change your mind.")
+		return
+	}
+
+	interval, ok := askInterval()
+	if !ok {
+		ui.Println("No valid choice made, so nothing was installed.")
+		ui.Println("Run 'stackdrift service install' to try again.")
+		return
+	}
+
+	if err := installService(interval); err != nil {
+		// A failed install must not be recorded as a decision, or the offer
+		// never comes back and the user is left with nothing watching.
+		ui.Println("Could not install the service: " + err.Error())
+		ui.Println("Run 'stackdrift service install' to try again.")
+	}
+}
+
+// The costs differ enough between the two modes that quoting one number for
+// both would be wrong for whichever one they pick.
+func describeCost() {
+	ui.Println("  What it costs, measured:")
+	ui.Println("    Near realtime  stays running at " + residentMemory + ". Every 10 seconds it checks")
+	ui.Println("                   the timestamps of the files it already knows about, which")
+	ui.Println("                   is a few dozen stat calls and no measurable CPU. It only")
+	ui.Println("                   does real work when one of them has actually moved.")
+	ui.Println("    Any other      nothing runs at all between checks. Each check finishes in")
+	ui.Println("                   well under a second and peaks around " + scanPeakMemory + ".")
+	ui.Println()
+	ui.Println("  A very large directory can push one check to " + largeTreePeak + " for a moment. It")
+	ui.Println("  runs at low priority and idle IO, so it yields to everything else.")
+}
+
+func serviceNoun() string {
+	switch service.Describe() {
+	case "systemd user service":
+		return "service"
+	case "launchd agent":
+		return "agent"
+	default:
+		return "task"
+	}
+}

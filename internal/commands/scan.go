@@ -129,6 +129,10 @@ func scan(client *api.Client, dir string, assumeYes bool) error {
 	if path, err := config.ProjectFilePath(project.ID); err == nil {
 		ui.Println("Link saved to " + path)
 	}
+
+	// Asked after the summary rather than before it, so the scan the user came
+	// for is finished and reported before anything else is put to them.
+	offerWatchService(assumeYes)
 	return nil
 }
 

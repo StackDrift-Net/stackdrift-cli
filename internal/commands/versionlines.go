@@ -20,13 +20,33 @@ import (
 // business: version.php reports the exact build a site runs, while a composer
 // constraint or a target framework only ever names the line.
 func resolveVersionLines(client *api.Client, result *detect.Result, tracked []config.TrackedTechnology) {
+	resolveVersionLinesReporting(client, result, tracked)
+}
+
+// resolveVersionLinesReporting does the same work and names the technologies
+// whose catalog lookup failed. An interactive scan can ignore that: the worst a
+// stale line costs is an entry offered twice, with a person looking at it. The
+// watcher cannot ignore it, because an unresolved version read against a
+// resolved one looks exactly like the software having moved, and it would act on
+// that by itself. Anything in this set is left completely alone.
+func resolveVersionLinesReporting(
+	client *api.Client,
+	result *detect.Result,
+	tracked []config.TrackedTechnology,
+) map[string]bool {
+	unresolved := map[string]bool{}
 	known := make(map[string][]string)
+
 	lookup := func(name string) []string {
 		versions, looked := known[name]
 		if !looked {
 			// A lookup failure must not fail the scan. Leaving the detected
 			// version alone is the same behaviour as before this existed.
-			versions, _ = client.GetVersions(name)
+			var err error
+			versions, err = client.GetVersions(name)
+			if err != nil {
+				unresolved[strings.ToLower(name)] = true
+			}
 			known[name] = versions
 		}
 		return versions
@@ -64,6 +84,7 @@ func resolveVersionLines(client *api.Client, result *detect.Result, tracked []co
 	// Resolution is what makes two detections identical, so the merge has to
 	// happen after it rather than only inside the scan.
 	detect.Dedupe(result)
+	return unresolved
 }
 
 // matchVersionLine mirrors how the server matches a version to a release: an
