@@ -172,7 +172,44 @@ func TestCompletionInfo_CarriesTheOptionsOfEachCommand(t *testing.T) {
 	if !strings.Contains(strings.Join(options["scan"], " "), "--yes") {
 		t.Fatalf("expected scan to offer --yes, got %v", options["scan"])
 	}
-	if !strings.Contains(strings.Join(options["completion"], " "), "bash") {
-		t.Fatalf("expected completion to offer the supported shells, got %v", options["completion"])
+	if !strings.Contains(strings.Join(options["service"], " "), "--interval") {
+		t.Fatalf("expected service to offer --interval, got %v", options["service"])
+	}
+}
+
+// completion is hidden because nobody types it themselves. It is still the
+// command both installers run to write the shell script (install.sh:109,
+// install.ps1:53), so hiding it must not stop it dispatching. Deleting it, or
+// filtering hidden commands out of the registry, would silently take tab
+// completion away from every install.
+// What the script itself emits is covered by
+// TestCompletion_EverySupportedShell_EmitsAScriptThatAsksTheBinary. This only
+// has to prove the command still reaches it while hidden.
+func TestRun_HiddenCompletionCommand_StillDispatches(t *testing.T) {
+	var out, errOut bytes.Buffer
+
+	code := run([]string{"completion", "bash"}, registry(), &out, &errOut)
+
+	if code != 0 {
+		t.Fatalf("expected the installer's call to succeed, got %d: %s", code, errOut.String())
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("expected no error output, got %q", errOut.String())
+	}
+}
+
+func TestRegistry_Always_KeepsHiddenCommandsReachable(t *testing.T) {
+	if _, ok := registry()["completion"]; !ok {
+		t.Fatal("hiding a command must not remove it from the dispatch table")
+	}
+}
+
+func TestUsage_Always_HidesTheCompletionCommand(t *testing.T) {
+	var out bytes.Buffer
+
+	usage(&out)
+
+	if strings.Contains(out.String(), "completion") {
+		t.Fatalf("expected completion kept out of the help, got %q", out.String())
 	}
 }

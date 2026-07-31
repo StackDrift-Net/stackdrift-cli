@@ -59,8 +59,12 @@ func commandList() []command {
 		{name: "logout", run: commands.Logout, help: "remove the saved credentials"},
 		{name: "update", run: runUpdate, help: "download and install the latest release",
 			options: []commands.OptionInfo{{Name: "--force", Help: "reinstall even when already up to date"}}},
+		// Hidden, not removed. The installer calls it once to write the shell
+		// script (install.sh:109, install.ps1:53), so deleting it would silently
+		// take tab completion away from everybody. Nobody needs to type it
+		// themselves, which is the only reason it was ever listed.
 		{name: "completion", run: runCompletion, help: "print a shell completion script",
-			options: shellOptions()},
+			options: shellOptions(), hidden: true},
 		{name: "version", run: showVersion, help: "print the CLI version"},
 		{name: "__complete", run: runCompleteLine, hidden: true},
 	}

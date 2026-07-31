@@ -256,7 +256,6 @@ stackdrift service     manage the background service that watches for changes
 stackdrift watch       check now for stack changes and update StackDrift
 stackdrift whoami      show the signed in account
 stackdrift update      download and install the latest release
-stackdrift completion  print a shell completion script
 stackdrift version     print the CLI version
 ```
 
