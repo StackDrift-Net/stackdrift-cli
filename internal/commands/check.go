@@ -49,7 +49,7 @@ func check(client *api.Client, dir string) error {
 		return err
 	}
 
-	ui.Println("Project: " + cfg.ProjectName)
+	ui.Println("System: " + cfg.ProjectName)
 	ui.Printf("Technologies: %d (%d past end of life)\n", stats.TechnologyCount, stats.EndOfLifeCount)
 	ui.Printf("Technology CVEs: %d\n", stats.TechnologyCveCount)
 	ui.Println(dependencyLine(stats))

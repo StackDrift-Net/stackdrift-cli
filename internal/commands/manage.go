@@ -44,7 +44,7 @@ func remove(client *api.Client, dir string) error {
 	}
 
 	if len(project.Technologies) == 0 && len(deps.Groups) == 0 {
-		ui.Println("This project has nothing to remove.")
+		ui.Println("This system has nothing to remove.")
 		return nil
 	}
 
@@ -162,7 +162,7 @@ func status(client *api.Client, dir string) error {
 		return err
 	}
 
-	ui.Println("Project: " + project.Name)
+	ui.Println("System: " + project.Name)
 	ui.Printf("Technologies: %d\n", len(project.Technologies))
 	for _, t := range project.Technologies {
 		ui.Println("  - " + label(t.Name, t.Version))

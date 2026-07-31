@@ -31,13 +31,13 @@ func offerWatchService(assumeYes bool) {
 	}
 
 	ui.Println()
-	ui.Println("Keep this project up to date automatically?")
+	ui.Println("Keep this system up to date automatically?")
 	ui.Println("StackDrift can install a background " + serviceNoun() + " that notices when what you")
 	ui.Println("already track here moves: a package upgrade, a rewritten lock file, a new")
-	ui.Println("kernel or OS release. It updates the project for you, so the advisories")
+	ui.Println("kernel or OS release. It updates the system for you, so the advisories")
 	ui.Println("you get are about the versions actually installed.")
 	ui.Println()
-	ui.Println("  It only ever updates what this project already tracks, and only where")
+	ui.Println("  It only ever updates what this system already tracks, and only where")
 	ui.Println("  the evidence is unambiguous. It never adds software you have not chosen,")
 	ui.Println("  and the only row it removes is one a version change has replaced. Run")
 	ui.Println("  scan again yourself when you install something new.")

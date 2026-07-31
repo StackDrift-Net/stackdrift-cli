@@ -1,8 +1,8 @@
 # StackDrift CLI
 
-A command line tool for StackDrift. It scans a project directory, detects the
+A command line tool for StackDrift. It scans a directory, detects the
 technologies and dependency manifests that StackDrift supports, and adds them to
-one of your StackDrift projects. StackDrift then tracks versions, end of life
+one of your StackDrift systems. StackDrift then tracks versions, end of life
 dates, and security advisories for you.
 
 ## Install
@@ -83,7 +83,7 @@ stackdrift login
 This prints a link and a short code. Open the link in your browser, sign in to
 StackDrift, and confirm the code matches. The CLI waits until you approve, then
 saves a token so you do not need to sign in again. The token is stored in your
-user config directory, not in your project.
+user config directory, not in your system.
 
 To sign out:
 
@@ -93,21 +93,21 @@ stackdrift logout
 
 ## Track a directory
 
-From inside a project directory:
+From inside the directory you want to track:
 
 ```
 stackdrift scan
 ```
 
-The first time, it asks whether to add the directory to an existing project or
+The first time, it asks whether to add the directory to an existing system or
 create a new one. It then lists the technologies and dependency manifests it
 found. Use the numbers to toggle items on or off, then press Enter. The CLI adds
-the selected items to your project and records what is tracked.
+the selected items to your system and records what is tracked.
 
 That record is stored in `~/.stackdrift/<project-id>/.stackdrift`, not in the
 directory you scanned. Scan targets are often public web roots, so nothing is
 written where a web server could serve it. On later runs the CLI matches the
-directory to its project and does not ask you to pick one again.
+directory to its system and does not ask you to pick one again.
 
 To accept everything without prompts, for example on a first automated run:
 
@@ -115,12 +115,12 @@ To accept everything without prompts, for example on a first automated run:
 stackdrift scan --yes
 ```
 
-This needs the project to be chosen once interactively in that directory first.
+This needs the system to be chosen once interactively in that directory first.
 
 ## Keeping it up to date automatically
 
 After a scan the CLI offers to install a background service that notices when
-what you already track has moved, and updates the project for you. The answer is
+what you already track has moved, and updates the system for you. The answer is
 remembered per machine, including a no, so you are only asked once.
 
 ```
@@ -140,7 +140,7 @@ Valid values are `realtime`, `5m`, `hourly`, `twicedaily`, `daily` and `weekly`.
 
 ### What it will and will not do
 
-It keeps current what the project already tracks:
+It keeps current what the system already tracks:
 
 - a tracked dependency group is re-uploaded when its manifest or lock file
   contents change
@@ -161,7 +161,7 @@ explanation. Every other shape is left alone:
 | a version the catalog could not resolve | nothing for that technology, since the two sides are not comparable |
 
 The new version is always added **before** the old one is retired, so a crash or
-a network drop in between leaves the project tracking both rather than neither.
+a network drop in between leaves the system tracking both rather than neither.
 The next sweep clears up the extra.
 
 It deliberately does not:
@@ -175,7 +175,7 @@ It deliberately does not:
 
 ### What it costs
 
-Measured on the built binary, scanning a real project:
+Measured on the built binary, scanning a real system:
 
 | | memory | when |
 | --- | --- | --- |
@@ -216,7 +216,7 @@ The systemd unit is confined: `ProtectSystem=strict`, `ProtectHome=read-only`,
 stackdrift check
 ```
 
-This prints the CVE status of the project and exits with a non-zero code if any
+This prints the CVE status of the system and exits with a non-zero code if any
 tracked technology or dependency has a known CVE. Use it in a pipeline to fail a
 build when a new advisory appears.
 
@@ -278,7 +278,7 @@ snapshots of the whole site rather than anything you are running.
 ```
 stackdrift status      show the tracked technologies and dependencies
 stackdrift check       report CVE status and exit non-zero if any are found
-stackdrift remove      remove technologies or dependencies from the project
+stackdrift remove      remove technologies or dependencies from the system
 stackdrift service     manage the background service that watches for changes
 stackdrift watch       check now for stack changes and update StackDrift
 stackdrift whoami      show the signed in account

@@ -78,7 +78,7 @@ func scan(client *api.Client, dir string, assumeYes bool) error {
 		chosenManifests = manifestItems
 	} else {
 		chosenTechs = ui.ToggleList("Technologies detected:", techItems)
-		chosenManifests = ui.ToggleList("Dependency projects detected:", manifestItems)
+		chosenManifests = ui.ToggleList("Dependency groups detected:", manifestItems)
 	}
 
 	// Persist the project link before mutating, so an interrupted run still
@@ -122,9 +122,9 @@ func scan(client *api.Client, dir string, assumeYes bool) error {
 
 	ui.Println()
 	if added := len(cfg.Technologies) + len(cfg.DependencyGrp) + removed - before; added == 0 && removed == 0 {
-		ui.Println("No changes. Project '" + project.Name + "' already matches this directory.")
+		ui.Println("No changes. System '" + project.Name + "' already matches this directory.")
 	} else {
-		ui.Printf("Project '%s' updated: %d added, %d removed.\n", project.Name, added, removed)
+		ui.Printf("System '%s' updated: %d added, %d removed.\n", project.Name, added, removed)
 	}
 	if path, err := config.ProjectFilePath(project.ID); err == nil {
 		ui.Println("Link saved to " + path)
@@ -143,26 +143,26 @@ func resolveProject(client *api.Client, dir string, assumeYes bool) (*api.Projec
 	}
 
 	if existing != nil && existing.Migrated {
-		ui.Println("Moved the project link out of " + dir + " so it is not exposed by a web server.")
+		ui.Println("Moved the system link out of " + dir + " so it is not exposed by a web server.")
 		ui.Println("The old " + config.ProjectFileName + " file was removed. If it is in git, commit that deletion.")
 	}
 
 	if existing != nil && existing.ProjectID != 0 {
 		project, err := client.GetProject(existing.ProjectID)
 		if err == nil {
-			ui.Println("Using linked project '" + project.Name + "'.")
+			ui.Println("Using linked system '" + project.Name + "'.")
 			return project, existing, nil
 		}
 		if !isNotFound(err) {
 			return nil, nil, err
 		}
-		ui.Println("The linked project no longer exists. Choose another.")
+		ui.Println("The linked system no longer exists. Choose another.")
 		existing.Technologies = nil
 		existing.DependencyGrp = nil
 	}
 
 	if assumeYes {
-		return nil, nil, errors.New("this directory is not linked to a project yet, run scan once without --yes to choose one")
+		return nil, nil, errors.New("this directory is not linked to a system yet, run scan once without --yes to choose one")
 	}
 
 	project, err := chooseProject(client)

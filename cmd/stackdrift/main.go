@@ -45,7 +45,7 @@ func commandList() []command {
 			options: []commands.OptionInfo{{Name: "--yes", Help: "accept every detection without prompting"}}},
 		{name: "status", run: commands.Status, help: "show tracked technologies and dependencies"},
 		{name: "check", run: commands.Check, help: "report CVE status, exit non-zero if any are found"},
-		{name: "remove", run: commands.Remove, help: "remove technologies or dependencies from this project"},
+		{name: "remove", run: commands.Remove, help: "remove technologies or dependencies from this system"},
 		{name: "service", run: commands.Service, help: "manage the background service that watches for stack changes",
 			options: []commands.OptionInfo{
 				{Name: "install", Help: "install the service and choose how often it checks"},

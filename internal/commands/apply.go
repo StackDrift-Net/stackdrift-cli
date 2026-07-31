@@ -199,7 +199,7 @@ func applyManifests(client *api.Client, projectID int, dir string, primaries, al
 				" packages are declared in " + strings.Join(empty, ", "))
 		}
 		if len(unreadable)+len(empty) == len(names) {
-			ui.Println("           nothing was tracked for this project")
+			ui.Println("           nothing was tracked for this system")
 			continue
 		}
 

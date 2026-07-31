@@ -15,16 +15,16 @@ func chooseProject(client *api.Client) (*api.Project, error) {
 	}
 
 	if len(projects) == 0 {
-		ui.Println("You have no projects yet. Let's create one.")
+		ui.Println("You have no systems yet. Let's create one.")
 		return createProject(client)
 	}
 
 	ui.Println()
-	ui.Println("Add this directory to an existing project, or create a new one?")
+	ui.Println("Add this directory to an existing system, or create a new one?")
 	for i, p := range projects {
 		ui.Printf("  %2d. %s\n", i+1, p.Name)
 	}
-	ui.Printf("  %2d. Create a new project\n", len(projects)+1)
+	ui.Printf("  %2d. Create a new system\n", len(projects)+1)
 	ui.Println()
 
 	choice, ok := ui.AskInt(fmt.Sprintf("Choose 1-%d: ", len(projects)+1), 1, len(projects)+1)
@@ -39,9 +39,9 @@ func chooseProject(client *api.Client) (*api.Project, error) {
 }
 
 func createProject(client *api.Client) (*api.Project, error) {
-	name := ui.Ask("New project name: ")
+	name := ui.Ask("New system name: ")
 	if strings.TrimSpace(name) == "" {
-		return nil, fmt.Errorf("a project name is required")
+		return nil, fmt.Errorf("a system name is required")
 	}
 	description := ui.Ask("Description (optional): ")
 
@@ -49,6 +49,6 @@ func createProject(client *api.Client) (*api.Project, error) {
 	if err != nil {
 		return nil, err
 	}
-	ui.Println("Created project: " + project.Name)
+	ui.Println("Created system: " + project.Name)
 	return project, nil
 }

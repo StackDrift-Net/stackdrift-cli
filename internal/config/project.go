@@ -83,7 +83,7 @@ func LoadProject(dir string) (*ProjectConfig, error) {
 
 func SaveProject(dir string, cfg *ProjectConfig) error {
 	if cfg.ProjectID <= 0 {
-		return errors.New("cannot save a project link without a project id")
+		return errors.New("cannot save a system link without a system id")
 	}
 	if cfg.Version == 0 {
 		cfg.Version = 1
