@@ -5,10 +5,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/detect"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/ui"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/detect"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/ui"
 )
 
 func Scan(args []string) error {

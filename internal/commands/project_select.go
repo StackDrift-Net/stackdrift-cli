@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/ui"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/ui"
 )
 
 func chooseProject(client *api.Client) (*api.Project, error) {

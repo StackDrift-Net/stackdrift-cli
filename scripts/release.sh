@@ -12,7 +12,7 @@ set -euo pipefail
 # (default ~/.config/stackdrift/gh-token). The token is never committed.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPO="digitalaffinity-au/stackdrift-cli"
+REPO="StackDrift-Net/stackdrift-cli"
 TOKEN_FILE="${STACKDRIFT_GH_TOKEN_FILE:-$HOME/.config/stackdrift/gh-token}"
 
 cd "$ROOT"

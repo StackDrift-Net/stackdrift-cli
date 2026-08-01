@@ -3,8 +3,8 @@ package commands
 import (
 	"strings"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/detect"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/detect"
 )
 
 // hiddenNames is the set of catalog entries this CLI must not offer, keyed the

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
 )
 
 // captureSleeps replaces the polling wait so tests run instantly, and records

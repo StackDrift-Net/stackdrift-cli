@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 // A scheduled task rather than a Windows service, because a real service has to

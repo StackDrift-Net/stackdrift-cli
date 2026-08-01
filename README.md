@@ -10,7 +10,7 @@ dates, and security advisories for you.
 ### Linux/MacOS
 
 ```
-curl -fsSL https://raw.githubusercontent.com/digitalaffinity-au/stackdrift-cli/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/StackDrift-Net/stackdrift-cli/main/scripts/install.sh | bash
 ```
 
 This installs the binary into a directory that is already on your PATH, such as
@@ -26,7 +26,7 @@ Apple Silicon automatically.
 Open PowerShell and run:
 
 ```
-irm https://raw.githubusercontent.com/digitalaffinity-au/stackdrift-cli/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/StackDrift-Net/stackdrift-cli/main/scripts/install.ps1 | iex
 ```
 
 This installs the binary into `%LOCALAPPDATA%\Microsoft\WindowsApps`, which is

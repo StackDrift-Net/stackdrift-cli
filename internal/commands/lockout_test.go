@@ -8,8 +8,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 // recordingServer signs in against a server that answers /api/auth/me with the

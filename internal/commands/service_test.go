@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 func TestNormalizeInterval_EveryOfferedSpelling_IsAccepted(t *testing.T) {

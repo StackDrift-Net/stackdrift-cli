@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 // A user unit rather than a system one, because the credentials the scan needs

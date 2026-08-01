@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/detect"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/ui"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/detect"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/ui"
 )
 
 // How often the resident watcher stats the files it is watching, and how long

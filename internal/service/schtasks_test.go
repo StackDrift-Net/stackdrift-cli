@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 // Go builds the Windows command line itself and never goes through cmd.exe, so

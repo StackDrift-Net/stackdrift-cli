@@ -1,9 +1,9 @@
 package commands
 
 import (
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/service"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/ui"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/service"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/ui"
 )
 
 // Measured on the built binary, not estimated. A resident watcher settles here

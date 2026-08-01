@@ -7,9 +7,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/ui"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/ui"
 )
 
 type CveFoundError struct {

@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/commands"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/commands"
 )
 
 // Set on the child so a build that is still refused after updating reports the

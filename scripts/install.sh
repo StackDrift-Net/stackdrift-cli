@@ -4,9 +4,9 @@ set -euo pipefail
 # Installs the StackDrift CLI on Linux and macOS. Downloads the release binary
 # and places it in a directory that is already on your PATH, so no environment
 # variable changes are needed. Run with:
-#   curl -fsSL https://raw.githubusercontent.com/digitalaffinity-au/stackdrift-cli/main/scripts/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/StackDrift-Net/stackdrift-cli/main/scripts/install.sh | bash
 
-REPO="digitalaffinity-au/stackdrift-cli"
+REPO="StackDrift-Net/stackdrift-cli"
 
 echo "Installing the StackDrift CLI"
 

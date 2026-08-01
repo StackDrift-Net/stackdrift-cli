@@ -3,8 +3,8 @@ package commands
 import (
 	"fmt"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/auth"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/auth"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 func Login([]string) error {

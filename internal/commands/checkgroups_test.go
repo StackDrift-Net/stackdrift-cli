@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
 )
 
 func group(name string, packages, outdated, unknown int) api.ProjectGroupStat {

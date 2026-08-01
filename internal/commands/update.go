@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const releaseRepo = "digitalaffinity-au/stackdrift-cli"
+const releaseRepo = "StackDrift-Net/stackdrift-cli"
 
 func Update(current string, args []string) error {
 	force := false

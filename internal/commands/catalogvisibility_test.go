@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/detect"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/detect"
 )
 
 func kernelAndDistro() *detect.Result {

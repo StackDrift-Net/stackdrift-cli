@@ -3,8 +3,8 @@ package commands
 import (
 	"errors"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 var errSessionExpired = errors.New("your session is no longer valid, run: stackdrift login")

@@ -1,11 +1,11 @@
 # Installs the StackDrift CLI on Windows. Downloads the release binary and
 # places it in a directory that is already on your PATH, so no environment
 # variable changes are needed. Run with:
-#   irm https://raw.githubusercontent.com/digitalaffinity-au/stackdrift-cli/main/scripts/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/StackDrift-Net/stackdrift-cli/main/scripts/install.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$repo = "digitalaffinity-au/stackdrift-cli"
+$repo = "StackDrift-Net/stackdrift-cli"
 $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
 $binary = "stackdrift-windows-$arch.exe"
 $url = "https://github.com/$repo/releases/latest/download/$binary"

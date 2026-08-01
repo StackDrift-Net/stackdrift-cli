@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 var errNotSignedIn = errors.New("not signed in, run: stackdrift login")

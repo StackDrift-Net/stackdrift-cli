@@ -1,4 +1,4 @@
-module github.com/digitalaffinity-au/stackdrift-cli
+module github.com/StackDrift-Net/stackdrift-cli
 
 go 1.26.5
 

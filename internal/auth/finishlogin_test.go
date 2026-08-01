@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 func TestFinishLogin_StoresTheTokenAgainstTheServerAndAccount(t *testing.T) {

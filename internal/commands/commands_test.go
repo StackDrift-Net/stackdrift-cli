@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/ui"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/ui"
 )
 
 // linkedDir returns a directory already linked to projectID, with the link

@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 const label = "net.stackdrift.watch"

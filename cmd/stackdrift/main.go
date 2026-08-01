@@ -5,9 +5,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/api"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/commands"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/commands"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 var version = "dev"

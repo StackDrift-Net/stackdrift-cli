@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/config"
-	"github.com/digitalaffinity-au/stackdrift-cli/internal/detect"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/detect"
 )
 
 type kernelCall struct {
