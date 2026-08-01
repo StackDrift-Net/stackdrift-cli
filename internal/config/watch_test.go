@@ -162,3 +162,26 @@ func TestSaveAndLoadProject_GroupDigest_RoundTrips(t *testing.T) {
 		t.Fatalf("expected the digest kept, got %q", loaded.DependencyGrp[0].Digest)
 	}
 }
+
+// The answer to the service offer belongs to the machine, not to the directory
+// that happened to be scanned when it was put. Scanning a second project must
+// not put it again, because one service already covers every linked project.
+func TestLoadWatch_AnsweredWhileScanningOneProject_StaysAnsweredForTheNext(t *testing.T) {
+	t.Setenv("STACKDRIFT_HOME", t.TempDir())
+
+	if err := SaveProject(t.TempDir(), &ProjectConfig{ProjectID: 4, ProjectName: "First"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := SaveWatch(&WatchSettings{Asked: true, Enabled: true, Interval: IntervalDaily}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := SaveProject(t.TempDir(), &ProjectConfig{ProjectID: 9, ProjectName: "Second"}); err != nil {
+		t.Fatal(err)
+	}
+
+	settings := LoadWatch()
+	if !settings.Asked || !settings.Enabled || settings.Interval != IntervalDaily {
+		t.Fatalf("a second project must not reset the machine's answer, got %+v", settings)
+	}
+}

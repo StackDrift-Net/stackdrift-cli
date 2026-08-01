@@ -175,3 +175,24 @@ func TestUnitFile_PathWithASpace_QuotesTheExec(t *testing.T) {
 		t.Fatalf("expected the binary path quoted:\n%s", unit)
 	}
 }
+
+// One service per machine, not one per scanned directory. The command it runs
+// takes no directory: the sweep reads every linked project itself. A unit bound
+// to one directory would need a second unit for the next project scanned.
+func TestUnitFile_Always_SweepsEveryProjectRatherThanOneDirectory(t *testing.T) {
+	unit := unitFile(Plan{Interval: config.IntervalDaily, Exec: "/x/stackdrift"}, false)
+
+	if strings.Contains(unit, "WorkingDirectory=") {
+		t.Fatalf("a unit tied to one directory cannot cover the next project:\n%s", unit)
+	}
+
+	for _, line := range strings.Split(unit, "\n") {
+		rest, found := strings.CutPrefix(strings.TrimSpace(line), "ExecStart=")
+		if !found {
+			continue
+		}
+		if strings.TrimSpace(rest) != "/x/stackdrift watch" {
+			t.Fatalf("the sweep takes no directory argument, got %q", rest)
+		}
+	}
+}

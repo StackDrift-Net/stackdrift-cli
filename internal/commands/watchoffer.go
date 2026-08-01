@@ -30,6 +30,15 @@ func offerWatchService(assumeYes bool) {
 		return
 	}
 
+	// One service covers every directory scanned on this machine, so a machine
+	// that already has one has answered this. Only reached when the preferences
+	// file is missing or damaged, and putting the offer there would end in
+	// "Not installed" printed over a service that is still running.
+	if state, err := service.Status(); err == nil && state.Installed {
+		adoptInstalledService(state)
+		return
+	}
+
 	ui.Println()
 	ui.Println("Keep this system up to date automatically?")
 	ui.Println("StackDrift can install a background " + serviceNoun() + " that notices when what you")
@@ -66,6 +75,18 @@ func offerWatchService(assumeYes bool) {
 		ui.Println("Could not install the service: " + err.Error())
 		ui.Println("Run 'stackdrift service install' to try again.")
 	}
+}
+
+// adoptInstalledService writes back what the platform already has, so the next
+// scan reads the answer out of the preferences file rather than asking the
+// scheduler again. The interval comes from the installed unit, which is the
+// only record of it once the file it was saved to has gone.
+func adoptInstalledService(state service.State) {
+	_ = config.SaveWatch(&config.WatchSettings{
+		Asked:    true,
+		Enabled:  true,
+		Interval: state.Interval,
+	})
 }
 
 // Every interval on offer is handed to the platform's own scheduler, so there
