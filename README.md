@@ -103,16 +103,21 @@ stackdrift service uninstall   remove it
 stackdrift watch               run one check now, in the foreground
 ```
 
+Three intervals are offered: **daily**, **every other day** and **weekly**.
+Daily is the recommendation. Advisories are published on a scale of days, so a
+shorter interval finds the same news sooner than anyone can act on it while
+asking more of the machine.
+
 Pick the interval when installing to skip the question:
 
 ```
-stackdrift service install --interval hourly
+stackdrift service install --interval daily
 ```
 
-Valid values are `realtime`, `5m`, `hourly`, `twicedaily`, `daily` and `weekly`.
-
-`daily` is the recommendation. Advisories are published on a scale of days, so a
-shorter interval finds the same news sooner than anyone can act on it.
+`daily`, `everyotherday` and `weekly` are what the menu offers. `realtime`,
+`5m`, `hourly` and `twicedaily` are still accepted here, and installs already
+running on them keep working, but they are no longer put to anyone choosing.
+`realtime` is the only one that stays resident; see what it costs, below.
 
 ### What it will and will not do
 
@@ -155,19 +160,20 @@ Measured on the built binary, scanning a real system:
 
 | | memory | when |
 | --- | --- | --- |
-| Near realtime, waiting | ~12 MB resident | continuously |
-| Near realtime, checking | ~15 MB peak | only when a watched file has moved |
-| Any other interval | nothing resident | between checks |
+| Any offered interval | nothing resident | between checks |
 | One check | ~14 MB peak, under 0.1s | at each interval |
 | One check, 89 GB tree with 534 manifests | ~29 MB peak, 0.3s | worst case measured |
+| `--interval realtime`, waiting | ~12 MB resident | continuously |
+| `--interval realtime`, checking | ~15 MB peak | only when a watched file has moved |
 
-Near realtime does not walk your tree every ten seconds. It stats the handful of
-files it already knows about, the manifests it read plus `/etc/os-release` and
-`/proc/version`, and only does real work when one of them has actually changed.
-A full walk still runs hourly to catch anything the watch set cannot see.
+Every offered interval is handed to the platform's own scheduler, so nothing of
+ours is running between two checks.
 
-Every interval other than near realtime is handed to the platform's own
-scheduler, so nothing of ours is running between two checks.
+Near realtime, which is only reachable by asking for it, does not walk your tree
+every ten seconds. It stats the handful of files it already knows about, the
+manifests it read plus `/etc/os-release` and `/proc/version`, and only does real
+work when one of them has actually changed. A full walk still runs hourly to
+catch anything the watch set cannot see.
 
 The service runs at low priority and idle IO, so it yields to everything else.
 

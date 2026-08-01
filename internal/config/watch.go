@@ -11,13 +11,19 @@ const WatchFileName = "watch.json"
 // Intervals the background service can run at. Realtime is the only one that
 // stays resident; the rest are handed to the platform's own scheduler, so
 // nothing of ours is running between two of its runs.
+//
+// Only three of these are offered when installing. The rest stay recognised
+// because installs in the field already run on them and because --interval
+// still takes them, and a value the CLI no longer understands would report as
+// no interval at all in status.
 const (
-	IntervalRealtime = "realtime"
-	IntervalFiveMin  = "5m"
-	IntervalHourly   = "hourly"
-	IntervalTwiceDay = "twicedaily"
-	IntervalDaily    = "daily"
-	IntervalWeekly   = "weekly"
+	IntervalRealtime      = "realtime"
+	IntervalFiveMin       = "5m"
+	IntervalHourly        = "hourly"
+	IntervalTwiceDay      = "twicedaily"
+	IntervalDaily         = "daily"
+	IntervalEveryOtherDay = "everyotherday"
+	IntervalWeekly        = "weekly"
 )
 
 // Seconds each interval waits between full scans. Realtime carries the gap
@@ -35,6 +41,8 @@ func IntervalSeconds(interval string) int {
 		return 43200
 	case IntervalDaily:
 		return 86400
+	case IntervalEveryOtherDay:
+		return 172800
 	case IntervalWeekly:
 		return 604800
 	default:
@@ -54,6 +62,8 @@ func IntervalLabel(interval string) string {
 		return "twice a day"
 	case IntervalDaily:
 		return "daily"
+	case IntervalEveryOtherDay:
+		return "every other day"
 	case IntervalWeekly:
 		return "weekly"
 	default:

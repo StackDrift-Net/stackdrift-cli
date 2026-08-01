@@ -37,6 +37,10 @@ func taskSchedule(interval string) []string {
 		return []string{"/sc", "HOURLY", "/mo", "12"}
 	case config.IntervalDaily:
 		return []string{"/sc", "DAILY"}
+	// schtasks has no word for every second day, so it is DAILY with a
+	// modifier. Without /mo it would silently register a daily task.
+	case config.IntervalEveryOtherDay:
+		return []string{"/sc", "DAILY", "/mo", "2"}
 	case config.IntervalWeekly:
 		return []string{"/sc", "WEEKLY"}
 	default:

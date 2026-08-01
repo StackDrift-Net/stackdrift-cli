@@ -28,10 +28,10 @@ func TestQuoteTaskPath_PlainPath_IsLeftAlone(t *testing.T) {
 	}
 }
 
-func TestTaskSchedule_EveryOfferedInterval_HasATiming(t *testing.T) {
+func TestTaskSchedule_EveryKnownInterval_HasATiming(t *testing.T) {
 	for _, interval := range []string{
-		config.IntervalFiveMin, config.IntervalHourly,
-		config.IntervalTwiceDay, config.IntervalDaily, config.IntervalWeekly,
+		config.IntervalFiveMin, config.IntervalHourly, config.IntervalTwiceDay,
+		config.IntervalDaily, config.IntervalEveryOtherDay, config.IntervalWeekly,
 	} {
 		args := taskSchedule(interval)
 		if len(args) < 2 || args[0] != "/sc" {
@@ -45,6 +45,16 @@ func TestTaskSchedule_TwiceDaily_IsTwelveHourly(t *testing.T) {
 
 	if got != "/sc HOURLY /mo 12" {
 		t.Fatalf("expected every twelve hours, got %q", got)
+	}
+}
+
+// The only offered interval schtasks has no word for. DAILY with a modifier of
+// two is how it is said; without the modifier it would quietly run every day.
+func TestTaskSchedule_EveryOtherDay_IsDailyWithATwoDayModifier(t *testing.T) {
+	got := strings.Join(taskSchedule(config.IntervalEveryOtherDay), " ")
+
+	if got != "/sc DAILY /mo 2" {
+		t.Fatalf("expected every second day, got %q", got)
 	}
 }
 

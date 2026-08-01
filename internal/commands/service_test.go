@@ -114,18 +114,32 @@ func TestIntervalChoices_EveryOption_IsAcceptedByTheFlag(t *testing.T) {
 	}
 }
 
-func TestIntervalChoices_Realtime_IsTheOnlyOneThatDeclaresACost(t *testing.T) {
-	for _, interval := range intervalChoices {
-		note := intervalNote(interval)
-		if interval == config.IntervalRealtime {
-			if !strings.Contains(note, residentMemory) {
-				t.Fatalf("the resident option must say what it costs, got %q", note)
-			}
-			continue
+// Three options, in the order they are offered. Pinned exactly, because the
+// menu is the whole interface to this feature and a fourth one appearing is a
+// decision somebody should have to make deliberately.
+func TestIntervalChoices_AreTheThreeOffered(t *testing.T) {
+	want := []string{config.IntervalDaily, config.IntervalEveryOtherDay, config.IntervalWeekly}
+
+	if len(intervalChoices) != len(want) {
+		t.Fatalf("expected %v, got %v", want, intervalChoices)
+	}
+	for i, interval := range want {
+		if intervalChoices[i] != interval {
+			t.Fatalf("expected %v, got %v", want, intervalChoices)
 		}
-		if strings.Contains(note, residentMemory) {
-			t.Fatalf("%q runs nothing between checks, so it has no standing cost to declare, got %q",
-				interval, note)
+	}
+}
+
+// Nothing offered stays in memory between checks, so nothing offered has a
+// standing cost to declare. The resident mode is still reachable with an
+// explicit --interval realtime, and it is the one thing that would break this.
+func TestIntervalChoices_NoneOfThemStayResident(t *testing.T) {
+	for _, interval := range intervalChoices {
+		if interval == config.IntervalRealtime {
+			t.Fatal("the resident mode is offered again, which changes what the cost note has to say")
+		}
+		if strings.Contains(intervalNote(interval), residentMemory) {
+			t.Fatalf("%q runs nothing between checks, so it has no standing cost to declare", interval)
 		}
 	}
 }

@@ -10,14 +10,14 @@ import (
 	"github.com/digitalaffinity-au/stackdrift-cli/internal/ui"
 )
 
-// The order they are offered in, cheapest attention first. Realtime leads
-// because it is the one people want and the one whose cost needs explaining.
+// Three options, most often first. Advisories are published on a scale of days,
+// so anything shorter than daily finds the same news sooner than anyone can act
+// on it, and a menu of six made a decision out of something that has one sensible
+// answer. The shorter intervals are still recognised, for installs already on
+// them and for anyone who passes --interval deliberately.
 var intervalChoices = []string{
-	config.IntervalRealtime,
-	config.IntervalFiveMin,
-	config.IntervalHourly,
-	config.IntervalTwiceDay,
 	config.IntervalDaily,
+	config.IntervalEveryOtherDay,
 	config.IntervalWeekly,
 }
 
@@ -164,6 +164,8 @@ func normalizeInterval(value string) string {
 		return config.IntervalTwiceDay
 	case "daily", "1d":
 		return config.IntervalDaily
+	case "everyotherday", "every-other-day", "2d":
+		return config.IntervalEveryOtherDay
 	case "weekly", "1w":
 		return config.IntervalWeekly
 	default:
@@ -198,6 +200,8 @@ func intervalTitle(interval string) string {
 		return "Twice a day"
 	case config.IntervalDaily:
 		return "Daily"
+	case config.IntervalEveryOtherDay:
+		return "Every other day"
 	case config.IntervalWeekly:
 		return "Weekly"
 	default:

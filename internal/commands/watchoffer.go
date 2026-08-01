@@ -68,16 +68,12 @@ func offerWatchService(assumeYes bool) {
 	}
 }
 
-// The costs differ enough between the two modes that quoting one number for
-// both would be wrong for whichever one they pick.
+// Every interval on offer is handed to the platform's own scheduler, so there
+// is one cost to quote rather than one per mode.
 func describeCost() {
 	ui.Println("  What it costs, measured:")
-	ui.Println("    Near realtime  stays running at " + residentMemory + ". Every 10 seconds it checks")
-	ui.Println("                   the timestamps of the files it already knows about, which")
-	ui.Println("                   is a few dozen stat calls and no measurable CPU. It only")
-	ui.Println("                   does real work when one of them has actually moved.")
-	ui.Println("    Any other      nothing runs at all between checks. Each check finishes in")
-	ui.Println("                   well under a second and peaks around " + scanPeakMemory + ".")
+	ui.Println("    Nothing runs at all between checks. Each check finishes in well under")
+	ui.Println("    a second and peaks around " + scanPeakMemory + ".")
 	ui.Println()
 	ui.Println("  A very large directory can push one check to " + largeTreePeak + " for a moment. It")
 	ui.Println("  runs at low priority and idle IO, so it yields to everything else.")

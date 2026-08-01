@@ -60,13 +60,13 @@ func TestLoadWatch_CorruptFile_ReadsAsUnasked(t *testing.T) {
 	}
 }
 
-func TestIntervalSeconds_EveryOfferedInterval_HasADuration(t *testing.T) {
-	offered := []string{
-		IntervalRealtime, IntervalFiveMin, IntervalHourly,
-		IntervalTwiceDay, IntervalDaily, IntervalWeekly,
+func TestIntervalSeconds_EveryKnownInterval_HasADuration(t *testing.T) {
+	known := []string{
+		IntervalRealtime, IntervalFiveMin, IntervalHourly, IntervalTwiceDay,
+		IntervalDaily, IntervalEveryOtherDay, IntervalWeekly,
 	}
 
-	for _, interval := range offered {
+	for _, interval := range known {
 		if IntervalSeconds(interval) <= 0 {
 			t.Fatalf("%q is offered to the user but has no duration", interval)
 		}
@@ -91,6 +91,20 @@ func TestIntervalSeconds_Realtime_IsShorterThanEveryScheduledInterval(t *testing
 
 	if realtime >= shortest {
 		t.Fatalf("realtime sweeps every %ds, which is no better than the %ds option", realtime, shortest)
+	}
+}
+
+// The name has to mean what it says, or a person picking it gets a schedule
+// nobody described to them.
+func TestIntervalSeconds_EveryOtherDay_IsTwoDays(t *testing.T) {
+	if got := IntervalSeconds(IntervalEveryOtherDay); got != 2*IntervalSeconds(IntervalDaily) {
+		t.Fatalf("expected twice the daily interval, got %ds", got)
+	}
+}
+
+func TestIntervalLabel_EveryOtherDay_ReadsAsItIsOffered(t *testing.T) {
+	if got := IntervalLabel(IntervalEveryOtherDay); got != "every other day" {
+		t.Fatalf("expected a label that matches the menu, got %q", got)
 	}
 }
 
