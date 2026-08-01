@@ -123,9 +123,23 @@ func TestIntervalChoices_Realtime_IsTheOnlyOneThatDeclaresACost(t *testing.T) {
 			}
 			continue
 		}
-		if note != "" {
+		if strings.Contains(note, residentMemory) {
 			t.Fatalf("%q runs nothing between checks, so it has no standing cost to declare, got %q",
 				interval, note)
+		}
+	}
+}
+
+// Someone with no reason to prefer one interval over another should be steered
+// to the one that suits the pace advisories are actually published at.
+func TestIntervalChoices_Daily_IsTheOnlyOneRecommended(t *testing.T) {
+	for _, interval := range intervalChoices {
+		recommended := strings.Contains(intervalNote(interval), "(recommended)")
+		if interval == config.IntervalDaily && !recommended {
+			t.Fatalf("daily is the recommendation, got %q", intervalNote(interval))
+		}
+		if interval != config.IntervalDaily && recommended {
+			t.Fatalf("two recommendations is no recommendation, %q also carries one", interval)
 		}
 	}
 }

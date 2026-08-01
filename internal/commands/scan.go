@@ -44,6 +44,10 @@ func scan(client *api.Client, dir string, assumeYes bool) error {
 		return err
 	}
 
+	// Before anything is counted or shown, so an entry the catalog does not
+	// offer to the CLI is never put to the user in the first place.
+	loadHiddenNames(client).drop(result)
+
 	if len(result.Technologies) == 0 && len(result.Manifests) == 0 {
 		ui.Println("No supported technologies or dependency manifests were found here.")
 		return nil

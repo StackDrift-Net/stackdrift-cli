@@ -111,6 +111,9 @@ stackdrift service install --interval hourly
 
 Valid values are `realtime`, `5m`, `hourly`, `twicedaily`, `daily` and `weekly`.
 
+`daily` is the recommendation. Advisories are published on a scale of days, so a
+shorter interval finds the same news sooner than anyone can act on it.
+
 ### What it will and will not do
 
 It keeps current what the system already tracks:
@@ -224,8 +227,13 @@ Technologies:
 - Laravel, from `composer.json`
 - WordPress, from `wp-includes/version.php`
 - The host operating system, from `/etc/os-release`
-- The Linux kernel version
+- The running kernel build, recorded against that operating system
 - Operating systems named in a Dockerfile `FROM` line
+
+The kernel is not offered as a technology of its own. A distribution services
+its own kernel, so its build belongs to the release you are on rather than to
+upstream mainline, and it is tracked there. The catalog decides this, so what a
+scan offers follows the website without needing a new CLI.
 
 Dependency manifests:
 

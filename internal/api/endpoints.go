@@ -56,6 +56,18 @@ func (c *Client) SuggestTechnologies(query string) ([]Suggestion, error) {
 	return suggestions, nil
 }
 
+// CliHiddenTechnologies names the catalog entries the CLI must not offer when
+// it finds them on a machine. The website is not filtered by it, so this is not
+// a list of things that cannot be tracked, only of things nobody should be
+// nudged into tracking by a scan.
+func (c *Client) CliHiddenTechnologies() ([]string, error) {
+	var names []string
+	if err := c.do(http.MethodGet, "/api/technologies/cli-hidden", nil, &names); err != nil {
+		return nil, err
+	}
+	return names, nil
+}
+
 func (c *Client) GetVersions(name string) ([]string, error) {
 	var versions []string
 	path := "/api/technologies/versions?name=" + url.QueryEscape(name)

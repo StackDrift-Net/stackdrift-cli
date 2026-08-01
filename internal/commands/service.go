@@ -205,12 +205,19 @@ func intervalTitle(interval string) string {
 	}
 }
 
-// The note is only worth printing where the cost differs from the obvious. The
-// resident option is the one that stays in memory, and the scheduled ones are
-// the ones that do not, which is the opposite of what most people expect.
+// The note is only worth printing where the cost differs from the obvious, or
+// where there is a steer to give. The resident option is the one that stays in
+// memory, and the scheduled ones are the ones that do not, which is the opposite
+// of what most people expect. Daily is recommended because advisories are
+// published on a scale of days, so checking more often finds the same news
+// sooner than anyone can act on it while asking more of the machine.
 func intervalNote(interval string) string {
-	if interval == config.IntervalRealtime {
+	switch interval {
+	case config.IntervalRealtime:
 		return "  (stays resident, " + residentMemory + ", CPU is a few file checks every 10 seconds)"
+	case config.IntervalDaily:
+		return "  (recommended)"
+	default:
+		return ""
 	}
-	return ""
 }

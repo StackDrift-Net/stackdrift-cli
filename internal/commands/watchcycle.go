@@ -48,9 +48,13 @@ func runCycle() (cycleResult, error) {
 		return result, err
 	}
 
+	// Read once for the whole sweep rather than per project or per path, which
+	// on the shortest interval would be a round trip every ten seconds.
+	hidden := loadHiddenNames(client)
+
 	watching := map[string]bool{}
 	for _, cfg := range projects {
-		changed, watched, err := cycleProject(client, cfg)
+		changed, watched, err := cycleProject(client, hidden, cfg)
 		if err != nil {
 			// One unreachable project must not stop the others. The error is
 			// reported and the sweep carries on.
@@ -69,7 +73,7 @@ func runCycle() (cycleResult, error) {
 	return result, nil
 }
 
-func cycleProject(client *api.Client, cfg *config.ProjectConfig) (int, []string, error) {
+func cycleProject(client *api.Client, hidden hiddenNames, cfg *config.ProjectConfig) (int, []string, error) {
 	project, err := client.GetProject(cfg.ProjectID)
 	if err != nil {
 		if isNotFound(err) {
@@ -124,6 +128,10 @@ func cycleProject(client *api.Client, cfg *config.ProjectConfig) (int, []string,
 			complete = false
 			continue
 		}
+
+		// Dropped before the versions are resolved, so a hidden entry costs no
+		// catalog lookup and cannot be read as a move by the rest of the sweep.
+		hidden.drop(scanned)
 
 		for name := range resolveVersionLinesReporting(client, scanned, cfg.Technologies) {
 			unresolved[name] = true
