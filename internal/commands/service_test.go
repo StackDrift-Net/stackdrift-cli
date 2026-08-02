@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/service"
 )
 
 func TestNormalizeInterval_EveryOfferedSpelling_IsAccepted(t *testing.T) {
@@ -166,5 +167,57 @@ func TestService_UnknownAction_IsRefused(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "reticulate") {
 		t.Fatalf("the error should name what was not understood, got %v", err)
+	}
+}
+
+func statusLine(t *testing.T, lines []string, prefix string) string {
+	t.Helper()
+
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), prefix) {
+			return strings.TrimSpace(line)
+		}
+	}
+	t.Fatalf("no %q line in %+v", prefix, lines)
+	return ""
+}
+
+// A timer armed for a daily sweep is idle almost all the time, so "running"
+// described the healthy state as if something were wrong.
+func TestStatusLines_Armed_ReadsAsScheduled(t *testing.T) {
+	lines := statusLines(service.State{Installed: true, Running: true}, config.IntervalDaily)
+
+	if got := statusLine(t, lines, "state:"); got != "state:    installed and scheduled" {
+		t.Fatalf("unexpected state line %q", got)
+	}
+}
+
+// The state Vince hit on spnix: enabled on disk, never pulled into the running
+// systemd manager, so nothing was scheduled at all. This must stay alarming.
+func TestStatusLines_NotArmed_StillSaysItIsNotRunning(t *testing.T) {
+	lines := statusLines(service.State{Installed: true, Running: false}, config.IntervalDaily)
+
+	if got := statusLine(t, lines, "state:"); got != "state:    installed but not running" {
+		t.Fatalf("a service the scheduler is not holding must not read as scheduled, got %q", got)
+	}
+}
+
+func TestStatusLines_NotInstalled_OffersTheInstallCommand(t *testing.T) {
+	lines := statusLines(service.State{}, "")
+
+	joined := strings.Join(lines, "\n")
+	if !strings.Contains(joined, "stackdrift service install") {
+		t.Fatalf("expected the install hint, got %q", joined)
+	}
+	if strings.Contains(joined, "state:") {
+		t.Fatalf("a service that does not exist has no state to report, got %q", joined)
+	}
+}
+
+func TestStatusLines_IntervalMissingFromTheState_UsesTheFallback(t *testing.T) {
+	lines := statusLines(service.State{Installed: true, Running: true}, config.IntervalWeekly)
+
+	if got := statusLine(t, lines, "interval:"); got != "interval: weekly" {
+		t.Fatalf("unexpected interval line %q", got)
 	}
 }

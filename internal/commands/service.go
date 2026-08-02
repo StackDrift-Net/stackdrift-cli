@@ -113,30 +113,43 @@ func serviceStatus() error {
 		return err
 	}
 
-	if !state.Installed {
-		ui.Println("No background service is installed.")
-		ui.Println("Install one with: stackdrift service install")
-		return nil
-	}
-
 	interval := state.Interval
 	if interval == "" {
 		interval = config.LoadWatch().Interval
 	}
 
-	ui.Println("Background service: " + service.Describe())
-	if state.Detail != "" {
-		ui.Println("  unit:     " + state.Detail)
-	}
-	if interval != "" {
-		ui.Println("  interval: " + config.IntervalLabel(interval))
-	}
-	if state.Running {
-		ui.Println("  state:    running")
-	} else {
-		ui.Println("  state:    installed but not running")
+	for _, line := range statusLines(state, interval) {
+		ui.Println(line)
 	}
 	return nil
+}
+
+// statusLines is kept apart from the printing so the wording can be tested,
+// which is the whole point of a status command: it is read to decide whether
+// something is wrong.
+func statusLines(state service.State, interval string) []string {
+	if !state.Installed {
+		return []string{
+			"No background service is installed.",
+			"Install one with: stackdrift service install",
+		}
+	}
+
+	lines := []string{"Background service: " + service.Describe()}
+	if state.Detail != "" {
+		lines = append(lines, "  unit:     "+state.Detail)
+	}
+	if interval != "" {
+		lines = append(lines, "  interval: "+config.IntervalLabel(interval))
+	}
+
+	// Armed is the healthy state and it is idle almost all the time, so it says
+	// scheduled rather than running. The other branch stays blunt: it means the
+	// scheduler is not holding the service at all and no sweep will ever fire.
+	if state.Running {
+		return append(lines, "  state:    installed and scheduled")
+	}
+	return append(lines, "  state:    installed but not running")
 }
 
 func intervalArg(args []string) string {
