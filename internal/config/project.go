@@ -44,20 +44,6 @@ type ProjectConfig struct {
 	Migrated bool `json:"-"`
 }
 
-// StoreDir is where project links live. They are kept outside the scanned
-// directory because a scan target is often a public web root, where the file
-// would be readable by anyone who requests it.
-func StoreDir() (string, error) {
-	if fromEnv := strings.TrimSpace(os.Getenv("STACKDRIFT_HOME")); fromEnv != "" {
-		return fromEnv, nil
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".stackdrift"), nil
-}
-
 func ProjectFilePath(projectID int) (string, error) {
 	store, err := StoreDir()
 	if err != nil {
@@ -72,6 +58,17 @@ func LegacyProjectFilePath(dir string) string {
 
 func LoadProject(dir string) (*ProjectConfig, error) {
 	dir = absolutePath(dir)
+
+	// A link reclaimed from the store path itself describes the directory the
+	// store lives in, so a scan of that directory is told its file moved.
+	reclaimed, err := reclaimStore()
+	if err != nil {
+		return nil, err
+	}
+	if reclaimed != nil && reclaimed.linkedTo(dir) {
+		reclaimed.Migrated = true
+		return reclaimed, nil
+	}
 
 	cfg, err := findLinked(dir)
 	if err != nil || cfg != nil {
@@ -213,6 +210,12 @@ func releasePath(dir string, keepID int) error {
 
 func migrateLegacy(dir string) (*ProjectConfig, error) {
 	legacy := LegacyProjectFilePath(dir)
+
+	// Scanning the directory the store lives in aims this lookup at the store
+	// itself, which is a directory rather than a link.
+	if store, err := storePath(); err == nil && samePath(absolutePath(store), legacy) {
+		return nil, nil
+	}
 
 	cfg, err := readProjectFile(legacy)
 	if err != nil || cfg == nil {
