@@ -196,3 +196,100 @@ func TestUnitFile_Always_SweepsEveryProjectRatherThanOneDirectory(t *testing.T) 
 		}
 	}
 }
+
+// sd-bus derives the user bus address from XDG_RUNTIME_DIR alone, so ssh, cron
+// and su fail even though the socket is sitting there
+func TestRuntimeDirEnv_VariableMissingAndDirectoryPresent_IsFilledIn(t *testing.T) {
+	if got := runtimeDirEnv("", "/run/user/1000", true); got != "XDG_RUNTIME_DIR=/run/user/1000" {
+		t.Fatalf("expected the variable to be supplied, got %q", got)
+	}
+}
+
+// Never override a caller who set it deliberately
+func TestRuntimeDirEnv_AlreadySet_IsLeftAlone(t *testing.T) {
+	if got := runtimeDirEnv("/run/user/1000", "/run/user/9", true); got != "" {
+		t.Fatalf("expected nothing added, got %q", got)
+	}
+}
+
+func TestRuntimeDirEnv_NoRuntimeDirectory_AddsNothing(t *testing.T) {
+	if got := runtimeDirEnv("", "/run/user/1000", false); got != "" {
+		t.Fatalf("pointing at a directory that does not exist fixes nothing, got %q", got)
+	}
+}
+
+func TestRuntimeDirEnv_BlankVariable_CountsAsMissing(t *testing.T) {
+	if got := runtimeDirEnv("   ", "/run/user/1000", true); got != "XDG_RUNTIME_DIR=/run/user/1000" {
+		t.Fatalf("expected a blank value to be treated as unset, got %q", got)
+	}
+}
+
+// Lingering gives a headless box a user manager so it has to come first
+func TestInstall_LingeringIsAttemptedBeforeAnythingNeedsTheUserBus(t *testing.T) {
+	calls := recordInstall(t, config.IntervalDaily)
+
+	linger, reload := callIndex(calls, "loginctl enable-linger"), callIndex(calls, "daemon-reload")
+	if linger < 0 {
+		t.Fatalf("lingering was never attempted, calls were %+v", calls)
+	}
+	if reload < 0 {
+		t.Fatalf("no daemon-reload, calls were %+v", calls)
+	}
+	if linger > reload {
+		t.Fatalf("lingering must come first or a box with no session never reaches it, calls were %+v", calls)
+	}
+}
+
+// Arming after the reload or systemd enables a unit it has not read
+func TestInstall_UnitIsArmedAfterTheReload(t *testing.T) {
+	calls := recordInstall(t, config.IntervalDaily)
+
+	if reload, arm := callIndex(calls, "daemon-reload"), callIndex(calls, "enable --now"); reload > arm {
+		t.Fatalf("expected the reload before arming, calls were %+v", calls)
+	}
+}
+
+func recordInstall(t *testing.T, interval string) []string {
+	t.Helper()
+
+	if !Supported() {
+		t.Skip("systemctl is not on this machine")
+	}
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USER", "ubuntu")
+
+	var calls []string
+	original := runCommand
+	t.Cleanup(func() { runCommand = original })
+	runCommand = func(name string, args ...string) error {
+		calls = append(calls, name+" "+strings.Join(args, " "))
+		return nil
+	}
+
+	if err := Install(Plan{Interval: interval, Exec: "/usr/local/bin/stackdrift"}); err != nil {
+		t.Fatal(err)
+	}
+	return calls
+}
+
+func callIndex(calls []string, fragment string) int {
+	for i, call := range calls {
+		if strings.Contains(call, fragment) {
+			return i
+		}
+	}
+	return -1
+}
+
+// The one check that talks to real systemd, timers target is read never changed
+func TestCommand_NoRuntimeDirInTheEnvironment_StillReachesTheUserBus(t *testing.T) {
+	if !Supported() || !runtimeDirExists() {
+		t.Skip("no systemctl or no user runtime directory on this machine")
+	}
+	t.Setenv("XDG_RUNTIME_DIR", "")
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "")
+
+	if err := command("systemctl", "--user", "is-active", "--quiet", "timers.target").Run(); err != nil {
+		t.Fatalf("a caller with no session variables must still reach its own bus, got %v", err)
+	}
+}

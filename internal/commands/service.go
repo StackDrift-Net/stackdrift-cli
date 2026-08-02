@@ -3,6 +3,7 @@ package commands
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
@@ -66,7 +67,7 @@ func installService(interval string) error {
 	}
 
 	if err := service.Install(service.Plan{Interval: interval, Exec: exe}); err != nil {
-		return err
+		return hintedError(err)
 	}
 
 	if err := config.SaveWatch(&config.WatchSettings{
@@ -81,6 +82,15 @@ func installService(interval string) error {
 	ui.Println("Installed the " + service.Describe() + ", running " + config.IntervalLabel(interval) + ".")
 	ui.Println("Stop it any time with: stackdrift service uninstall")
 	return nil
+}
+
+// Remedy rides on the error so it prints after the failure, not before
+func hintedError(err error) error {
+	hint := service.InstallHint(err, os.Getenv("USER"))
+	if len(hint) == 0 {
+		return err
+	}
+	return fmt.Errorf("%w\n%s", err, strings.Join(hint, "\n"))
 }
 
 func serviceUninstall() error {

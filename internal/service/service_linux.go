@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
@@ -28,6 +29,9 @@ func unitDir() (string, error) {
 	}
 	return filepath.Join(home, ".config", "systemd", "user"), nil
 }
+
+// Swapped in tests to observe the order of the calls Install makes
+var runCommand = run
 
 func Install(plan Plan) error {
 	if !Supported() {
@@ -61,22 +65,21 @@ func Install(plan Plan) error {
 		return err
 	}
 
-	if err := run("systemctl", "--user", "daemon-reload"); err != nil {
-		return err
+	// Before anything needs the user bus, loginctl reaches logind over the
+	// system bus so it works when the user bus is what is missing
+	if user := os.Getenv("USER"); user != "" {
+		_ = runCommand("loginctl", "enable-linger", user)
 	}
 
-	// Without lingering the unit dies at logout, which on a server is most of
-	// the time. A failure here is not fatal: the service still works while the
-	// user is logged in, and saying so beats refusing to install.
-	if user := os.Getenv("USER"); user != "" {
-		_ = run("loginctl", "enable-linger", user)
+	if err := runCommand("systemctl", "--user", "daemon-reload"); err != nil {
+		return err
 	}
 
 	unit := Name + ".timer"
 	if realtime {
 		unit = Name + ".service"
 	}
-	return run("systemctl", "--user", "enable", "--now", unit)
+	return runCommand("systemctl", "--user", "enable", "--now", unit)
 }
 
 func Uninstall() error {
@@ -218,15 +221,43 @@ func jitter(seconds int) int {
 }
 
 func active(unit string) bool {
-	return exec.Command("systemctl", "--user", "is-active", "--quiet", unit).Run() == nil
+	return command("systemctl", "--user", "is-active", "--quiet", unit).Run() == nil
+}
+
+// Fills XDG_RUNTIME_DIR when the caller has none
+// sd-bus derives the user bus address from it alone, so ssh, cron and su fail
+// with ENOMEDIUM even when the socket is sitting there
+func command(name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	if entry := runtimeDirEnv(os.Getenv("XDG_RUNTIME_DIR"), defaultRuntimeDir(), runtimeDirExists()); entry != "" {
+		cmd.Env = append(os.Environ(), entry)
+	}
+	return cmd
+}
+
+func defaultRuntimeDir() string {
+	return "/run/user/" + strconv.Itoa(os.Getuid())
+}
+
+func runtimeDirExists() bool {
+	info, err := os.Stat(defaultRuntimeDir())
+	return err == nil && info.IsDir()
+}
+
+// Empty means add nothing, a caller who set it deliberately is never overridden
+func runtimeDirEnv(current, dir string, exists bool) string {
+	if strings.TrimSpace(current) != "" || !exists {
+		return ""
+	}
+	return "XDG_RUNTIME_DIR=" + dir
 }
 
 func disableUnit(unit string) error {
-	return run("systemctl", "--user", "disable", "--now", unit)
+	return runCommand("systemctl", "--user", "disable", "--now", unit)
 }
 
 func run(name string, args ...string) error {
-	cmd := exec.Command(name, args...)
+	cmd := command(name, args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		trimmed := strings.TrimSpace(string(output))

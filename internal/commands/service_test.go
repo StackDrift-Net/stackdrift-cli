@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -219,5 +220,30 @@ func TestStatusLines_IntervalMissingFromTheState_UsesTheFallback(t *testing.T) {
 
 	if got := statusLine(t, lines, "interval:"); got != "interval: weekly" {
 		t.Fatalf("unexpected interval line %q", got)
+	}
+}
+
+// The failure has to come before the remedy
+func TestHintedError_NoSessionBus_PutsTheRemedyAfterTheFailure(t *testing.T) {
+	original := errors.New("systemctl --user daemon-reload: Failed to connect to bus: No medium found")
+
+	got := hintedError(original).Error()
+
+	if !strings.HasPrefix(got, original.Error()) {
+		t.Fatalf("expected the failure first, got %q", got)
+	}
+	if !strings.Contains(got, "Do not run this with sudo") {
+		t.Fatalf("expected the remedy, got %q", got)
+	}
+	if !errors.Is(hintedError(original), original) {
+		t.Fatal("wrapping must not hide the original error")
+	}
+}
+
+func TestHintedError_UnrecognisedFailure_IsUnchanged(t *testing.T) {
+	original := errors.New("permission denied")
+
+	if got := hintedError(original); got != original {
+		t.Fatalf("expected the error untouched, got %q", got)
 	}
 }
