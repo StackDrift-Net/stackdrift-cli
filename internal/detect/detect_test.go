@@ -359,3 +359,75 @@ func TestScanPrefersTreeSourceOverHostForTheSameTechnology(t *testing.T) {
 		t.Fatal("a tree detection must not be treated as a host detection")
 	}
 }
+
+// The style every project with a packages.config uses. It declares
+// TargetFrameworkVersion, not TargetFramework, so the SDK-style pattern never
+// matched it and a whole Full Framework solution reported no framework at all
+func TestScan_ClassicCsproj_DetectsFullFramework(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "Caterex.Data.csproj", `<Project ToolsVersion="15.0"><PropertyGroup><TargetFrameworkVersion>v4.8</TargetFrameworkVersion></PropertyGroup></Project>`)
+
+	result, err := Scan(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tech, ok := findTech(result.Technologies, ".NET Full Framework")
+	if !ok {
+		t.Fatalf("expected .NET Full Framework, got %+v", result.Technologies)
+	}
+	if tech.Version != "4.8" {
+		t.Fatalf("expected 4.8, got %q", tech.Version)
+	}
+}
+
+// The catalog carries 4.5.1 and 4.7.2, so the third part cannot be dropped
+func TestScan_ClassicCsprojWithAPatchVersion_KeepsAllThreeParts(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "legacy.csproj", `<Project><PropertyGroup><TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion></PropertyGroup></Project>`)
+
+	result, err := Scan(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tech, _ := findTech(result.Technologies, ".NET Full Framework")
+	if tech.Version != "4.7.2" {
+		t.Fatalf("expected 4.7.2, got %q", tech.Version)
+	}
+}
+
+// A solution mixing an SDK-style project with classic ones has to report both,
+// which is the shape that sent a Full Framework solution in as .NET Core only
+func TestScan_ClassicAndSdkProjectsTogether_ReportsBoth(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "classic/Caterex.Data.csproj", `<Project><PropertyGroup><TargetFrameworkVersion>v4.8</TargetFrameworkVersion></PropertyGroup></Project>`)
+	write(t, dir, "modern/trello-pull.csproj", `<Project><PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>`)
+
+	result, err := Scan(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, ok := findTech(result.Technologies, ".NET Full Framework"); !ok {
+		t.Fatalf("expected the classic project reported, got %+v", result.Technologies)
+	}
+	if _, ok := findTech(result.Technologies, ".NET Core SDK"); !ok {
+		t.Fatalf("expected the SDK project reported, got %+v", result.Technologies)
+	}
+}
+
+func TestScan_ClassicCsprojWithoutTheVeePrefix_IsStillRead(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "odd.csproj", `<Project><PropertyGroup><TargetFrameworkVersion>4.6.1</TargetFrameworkVersion></PropertyGroup></Project>`)
+
+	result, err := Scan(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tech, _ := findTech(result.Technologies, ".NET Full Framework")
+	if tech.Version != "4.6.1" {
+		t.Fatalf("expected 4.6.1, got %q", tech.Version)
+	}
+}

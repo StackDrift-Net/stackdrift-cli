@@ -7,8 +7,11 @@ import (
 
 var (
 	targetFrameworkRe = regexp.MustCompile(`(?i)<TargetFrameworks?>([^<]+)</TargetFrameworks?>`)
-	netCoreRe         = regexp.MustCompile(`^net(\d+)\.(\d+)$`)
-	netFrameworkRe    = regexp.MustCompile(`^net(\d)(\d)(\d)?$`)
+	// Classic projects, the ones that keep their packages in a packages.config,
+	// declare the framework this way and never match the pattern above
+	targetFrameworkVersionRe = regexp.MustCompile(`(?i)<TargetFrameworkVersion>\s*v?(\d+(?:\.\d+)*)\s*</TargetFrameworkVersion>`)
+	netCoreRe                = regexp.MustCompile(`^net(\d+)\.(\d+)$`)
+	netFrameworkRe           = regexp.MustCompile(`^net(\d)(\d)(\d)?$`)
 )
 
 func detectDotNet(result *Result, path string) {
@@ -17,17 +20,24 @@ func detectDotNet(result *Result, path string) {
 		return
 	}
 
-	match := targetFrameworkRe.FindStringSubmatch(content)
-	if match == nil {
+	if match := targetFrameworkRe.FindStringSubmatch(content); match != nil {
+		for _, tfm := range strings.Split(match[1], ";") {
+			tfm = strings.TrimSpace(strings.ToLower(tfm))
+			if tfm == "" {
+				continue
+			}
+			addFramework(result, moniker(tfm))
+		}
 		return
 	}
 
-	for _, tfm := range strings.Split(match[1], ";") {
-		tfm = strings.TrimSpace(strings.ToLower(tfm))
-		if tfm == "" {
-			continue
-		}
-		addFramework(result, moniker(tfm))
+	if match := targetFrameworkVersionRe.FindStringSubmatch(content); match != nil {
+		result.Technologies = append(result.Technologies, Technology{
+			Name:     ".NET Full Framework",
+			Version:  match[1],
+			Category: "Framework",
+			Source:   "csproj TargetFrameworkVersion",
+		})
 	}
 }
 
