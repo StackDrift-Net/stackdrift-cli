@@ -23,8 +23,10 @@ var kernelVersionRe = regexp.MustCompile(`^(\d+\.\d+)`)
 func scanHost(result *Result) {
 	if runtime.GOOS != "linux" {
 		if runtime.GOOS == "windows" {
+			name, version := windowsTechnology(readWindowsInfo())
 			result.Technologies = append(result.Technologies, Technology{
-				Name:     "Windows",
+				Name:     name,
+				Version:  version,
 				Category: "OperatingSystem",
 				Source:   SourceHost,
 			})
