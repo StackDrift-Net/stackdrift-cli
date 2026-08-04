@@ -229,7 +229,9 @@ stackdrift scan --yes || [ $? -eq 3 ]
 Technologies:
 
 - .NET Full Framework and .NET Core SDK, from `.csproj` target frameworks
-- .NET Core Runtime, from a Dockerfile base image
+- The exact .NET Core SDK a repository pins, from `global.json`
+- Every .NET Core SDK and runtime installed on the machine
+- .NET Core SDK and .NET Core Runtime, from a Dockerfile base image
 - Laravel, from `composer.json`
 - WordPress, from `wp-includes/version.php`
 - The host operating system, from `/etc/os-release`
@@ -240,6 +242,18 @@ The kernel is not offered as a technology of its own. A distribution services
 its own kernel, so its build belongs to the release you are on rather than to
 upstream mainline, and it is tracked there. The catalog decides this, so what a
 scan offers follows the website without needing a new CLI.
+
+.NET installs its releases side by side and leaves the old ones in place, so a
+scan lists every SDK and runtime line it finds under the install roots, with the
+exact patch each one is on. Older patches of the same line are not listed
+separately, because an application rolls forward onto the newest patch installed
+and that is the one it runs. Installs are found through `DOTNET_ROOT`,
+`/etc/dotnet/install_location`, whichever `dotnet` is on the path, and the
+standard locations for each platform.
+
+These are found on the machine rather than in the directory being scanned, so
+they are listed unticked. Tick the ones the system you are tracking actually
+runs.
 
 Dependency manifests:
 

@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"encoding/json"
 	"regexp"
 	"strings"
 )
@@ -39,6 +40,41 @@ func detectDotNet(result *Result, path string) {
 			Source:   "csproj TargetFrameworkVersion",
 		})
 	}
+}
+
+// detectGlobalJson reads the SDK a repository pins itself to. It is the one
+// place in a project that names an exact build rather than a line, so it is
+// worth reading even though the csproj already reports the line: without it the
+// row is scored against the newest patch of its line and reads as behind.
+func detectGlobalJson(result *Result, path string) {
+	content, ok := readCapped(path)
+	if !ok {
+		return
+	}
+
+	var doc struct {
+		Sdk struct {
+			Version string `json:"version"`
+		} `json:"sdk"`
+	}
+	if err := json.Unmarshal([]byte(content), &doc); err != nil {
+		return
+	}
+
+	// The version is optional and can be a word such as "latest", which names
+	// no release and must not be stored as one.
+	version := strings.TrimSpace(doc.Sdk.Version)
+	if !dotNetVersionDirRe.MatchString(version) {
+		return
+	}
+
+	result.Technologies = append(result.Technologies, Technology{
+		Name:     ".NET Core SDK",
+		Version:  dotNetLine(version),
+		Kernel:   version,
+		Category: "Framework",
+		Source:   "global.json",
+	})
 }
 
 func moniker(tfm string) string {

@@ -21,22 +21,24 @@ var distroNames = map[string]string{
 var kernelVersionRe = regexp.MustCompile(`^(\d+\.\d+)`)
 
 func scanHost(result *Result) {
-	if runtime.GOOS != "linux" {
-		if runtime.GOOS == "windows" {
-			name, version := windowsTechnology(readWindowsInfo())
-			result.Technologies = append(result.Technologies, Technology{
-				Name:     name,
-				Version:  version,
-				Category: "OperatingSystem",
-				Source:   SourceHost,
-			})
-		}
-		return
+	switch runtime.GOOS {
+	case "linux":
+		detectOsRelease(result, "/etc/os-release")
+		detectKernel(result)
+		attachRunningKernel(result, runningKernel())
+	case "windows":
+		name, version := windowsTechnology(readWindowsInfo())
+		result.Technologies = append(result.Technologies, Technology{
+			Name:     name,
+			Version:  version,
+			Category: "OperatingSystem",
+			Source:   SourceHost,
+		})
 	}
 
-	detectOsRelease(result, "/etc/os-release")
-	detectKernel(result)
-	attachRunningKernel(result, runningKernel())
+	// Runs on every platform, and after the operating system so the list reads
+	// machine first. .NET installs the same way everywhere.
+	scanDotNetHost(result)
 }
 
 // attachRunningKernel records the build the machine is actually booted into on

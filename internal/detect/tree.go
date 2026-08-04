@@ -45,6 +45,8 @@ func scanTree(root string, result *Result) error {
 		case strings.HasSuffix(lower, ".csproj"):
 			addManifest(result, "NuGet", path, name, true)
 			detectDotNet(result, path)
+		case lower == "global.json":
+			detectGlobalJson(result, path)
 		case lower == "composer.json":
 			detectLaravel(result, path)
 		case lower == "dockerfile" || strings.HasPrefix(lower, "dockerfile."):
