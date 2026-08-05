@@ -40,10 +40,14 @@ func (c *Client) CreateProject(name, description string) (*Project, error) {
 }
 
 // ReportScan tells the server this machine has just finished checking the
-// system's versions. The server stamps the time itself, so there is nothing to
-// send: a machine with a wrong clock cannot date its own scan.
-func (c *Client) ReportScan(projectID int) error {
-	return c.do(http.MethodPost, fmt.Sprintf("/api/projects/%d/scan-report", projectID), nil, nil)
+// system's versions, and passes on what the machine's own updater had waiting.
+// The time is not sent and never will be: the server stamps it, so a machine
+// with a wrong clock cannot date its own scan.
+//
+// A server too old to know the body ignores it, and one too old to know the
+// endpoint answers 404, which the caller already swallows.
+func (c *Client) ReportScan(projectID int, report ScanReportRequest) error {
+	return c.do(http.MethodPost, fmt.Sprintf("/api/projects/%d/scan-report", projectID), report, nil)
 }
 
 func (c *Client) GetProjectStats(id int) (*ProjectStats, error) {

@@ -52,9 +52,15 @@ func runCycle() (cycleResult, error) {
 	// on the shortest interval would be a round trip every ten seconds.
 	hidden := loadHiddenNames(client)
 
+	// Asked once for the same reason, and a stronger one: every system linked on
+	// this machine gets the same answer, and asking starts a process.
+	// nil because nobody is watching a background sweep, so there is nothing to
+	// reassure and a line in the service log would only repeat itself.
+	updates := readHostUpdates(nil)
+
 	watching := map[string]bool{}
 	for _, cfg := range projects {
-		changed, watched, err := cycleProject(client, hidden, cfg)
+		changed, watched, err := cycleProject(client, hidden, cfg, updates)
 		if err != nil {
 			// One unreachable project must not stop the others. The error is
 			// reported and the sweep carries on.
@@ -73,7 +79,7 @@ func runCycle() (cycleResult, error) {
 	return result, nil
 }
 
-func cycleProject(client *api.Client, hidden hiddenNames, cfg *config.ProjectConfig) (int, []string, error) {
+func cycleProject(client *api.Client, hidden hiddenNames, cfg *config.ProjectConfig, updates api.ScanReportRequest) (int, []string, error) {
 	project, err := client.GetProject(cfg.ProjectID)
 	if err != nil {
 		if isNotFound(err) {
@@ -163,7 +169,7 @@ func cycleProject(client *api.Client, hidden hiddenNames, cfg *config.ProjectCon
 	// part, and a fresh looking date would hide a machine whose volume has gone
 	// away behind exactly the reassurance that machine does not deserve.
 	if complete {
-		reportScan(client, project.ID)
+		reportScan(client, project.ID, updates)
 	}
 	return changed, watched, nil
 }

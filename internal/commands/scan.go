@@ -51,8 +51,12 @@ func scan(client *api.Client, dir string, assumeYes bool) error {
 	if len(result.Technologies) == 0 && len(result.Manifests) == 0 {
 		ui.Println("No supported technologies or dependency manifests were found here.")
 		// Still a check that ran and came back empty, which is a different
-		// thing from a machine nothing has looked at.
-		reportScan(client, project.ID)
+		// thing from a machine nothing has looked at. The machine's own updates
+		// are worth reporting either way, since they are nothing to do with what
+		// this directory turned out to hold.
+		updates := scanHostUpdates()
+		reportScan(client, project.ID, updates)
+		printPendingUpdates(updates)
 		return nil
 	}
 
@@ -137,7 +141,9 @@ func scan(client *api.Client, dir string, assumeYes bool) error {
 		ui.Println("Link saved to " + path)
 	}
 
-	reportScan(client, project.ID)
+	updates := scanHostUpdates()
+	reportScan(client, project.ID, updates)
+	printPendingUpdates(updates)
 
 	// Asked after the summary rather than before it, so the scan the user came
 	// for is finished and reported before anything else is put to them.
@@ -145,13 +151,17 @@ func scan(client *api.Client, dir string, assumeYes bool) error {
 	return nil
 }
 
-// reportScan dates the check on the website. It is the last thing a scan does
-// and the least important one, so a server too old to know the endpoint, or a
-// network that drops on the way out, is swallowed: turning work that already
-// succeeded into a failure would be a far worse trade than an undated scan.
-func reportScan(client *api.Client, projectID int) {
-	_ = client.ReportScan(projectID)
+// reportScan dates the check on the website and passes on what the machine's
+// own updater had waiting. It is the last thing a scan does and the least
+// important one, so a server too old to know the endpoint, or a network that
+// drops on the way out, is swallowed: turning work that already succeeded into
+// a failure would be a far worse trade than an undated scan.
+func reportScan(client *api.Client, projectID int, updates api.ScanReportRequest) {
+	_ = client.ReportScan(projectID, updates)
 }
+
+// Swapped in tests, which have no machine to ask and could not stand one up.
+var readHostUpdates = hostUpdates
 
 func resolveProject(client *api.Client, dir string, assumeYes bool) (*api.Project, *config.ProjectConfig, error) {
 	existing, err := config.LoadProject(dir)

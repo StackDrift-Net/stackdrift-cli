@@ -51,6 +51,14 @@ type UpdateKernelRequest struct {
 	Kernel string `json:"kernel"`
 }
 
+// ScanReportRequest is what the machine had to say about itself when a check
+// finished. The counts are pointers so a machine nobody could ask sends null
+// rather than zero, which the website would draw as nothing waiting.
+type ScanReportRequest struct {
+	PendingUpdates  *int `json:"pendingUpdates"`
+	SecurityUpdates *int `json:"securityUpdates"`
+}
+
 type ManifestFile struct {
 	FileName string `json:"fileName"`
 	Content  string `json:"content"`
