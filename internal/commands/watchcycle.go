@@ -157,6 +157,14 @@ func cycleProject(client *api.Client, hidden hiddenNames, cfg *config.ProjectCon
 	if err := config.SaveProject(cfg.Paths[0], cfg); err != nil {
 		return changed, watched, err
 	}
+
+	// Only a sweep that read everything it was meant to gets to date the check.
+	// A directory that could not be opened means the versions were checked in
+	// part, and a fresh looking date would hide a machine whose volume has gone
+	// away behind exactly the reassurance that machine does not deserve.
+	if complete {
+		reportScan(client, project.ID)
+	}
 	return changed, watched, nil
 }
 

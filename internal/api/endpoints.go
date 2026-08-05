@@ -39,6 +39,13 @@ func (c *Client) CreateProject(name, description string) (*Project, error) {
 	return &project, nil
 }
 
+// ReportScan tells the server this machine has just finished checking the
+// system's versions. The server stamps the time itself, so there is nothing to
+// send: a machine with a wrong clock cannot date its own scan.
+func (c *Client) ReportScan(projectID int) error {
+	return c.do(http.MethodPost, fmt.Sprintf("/api/projects/%d/scan-report", projectID), nil, nil)
+}
+
 func (c *Client) GetProjectStats(id int) (*ProjectStats, error) {
 	var stats ProjectStats
 	if err := c.do(http.MethodGet, fmt.Sprintf("/api/projects/%d/stats", id), nil, &stats); err != nil {

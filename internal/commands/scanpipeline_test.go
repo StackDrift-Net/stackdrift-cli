@@ -244,7 +244,10 @@ func TestScan_WithYes_DoesNotAddTheMachineOperatingSystem(t *testing.T) {
 func TestScan_NothingDetected_MakesNoChanges(t *testing.T) {
 	posted := false
 	client := serve(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
+		// The scan report is not a change. It records that the check ran, and
+		// a scan that found nothing still ran, so it is left out of the count
+		// rather than being read as the project having been written to.
+		if r.Method == http.MethodPost && !strings.HasSuffix(r.URL.Path, "/scan-report") {
 			posted = true
 		}
 		_, _ = w.Write([]byte(`{"id":7,"name":"Demo","technologies":[]}`))
