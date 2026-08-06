@@ -14,6 +14,7 @@ import (
 
 	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 	"github.com/StackDrift-Net/stackdrift-cli/internal/detect"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/service"
 	"github.com/StackDrift-Net/stackdrift-cli/internal/ui"
 )
 
@@ -29,13 +30,36 @@ const (
 )
 
 func Watch(args []string) error {
+	// Only the run the scheduler starts carries the answer given when the
+	// service was installed. A person typing "stackdrift watch" has agreed to
+	// nothing, and nothing else tells the two apart.
+	scheduled := scheduledRun(args)
+
 	if hasFlag(args, "--resident", "-r") {
-		return watchResident()
+		return watchResident(scheduled)
 	}
-	return watchOnce()
+	return watchOnce(args, scheduled)
 }
 
-func watchOnce() error {
+// scheduledRun reports whether the scheduler started this, which is the only
+// run that carries the answer given when the service was installed.
+func scheduledRun(args []string) bool {
+	return hasFlag(args, service.ScheduledFlag)
+}
+
+// rerunArgs rebuilds the whole command for the binary that replaced this one,
+// so the child does exactly what this process was asked to do.
+func rerunArgs(args []string) []string {
+	return append([]string{"watch"}, args...)
+}
+
+func watchOnce(args []string, scheduled bool) error {
+	// Ahead of every other check, so a build the server would turn away has
+	// already replaced itself before it asks the server anything.
+	if rerun, installed := selfUpdate(scheduled); rerun {
+		return rerunAfterUpdate(installed, rerunArgs(args))
+	}
+
 	result, err := runCycle()
 	if err != nil {
 		return err
@@ -49,11 +73,18 @@ func watchOnce() error {
 // watchResident is the near realtime mode. It holds no scan results between
 // sweeps and hands memory back to the OS after each one, so what stays resident
 // is the Go runtime and a list of file paths.
-func watchResident() error {
+func watchResident(scheduled bool) error {
 	ui.Println("Watching for stack changes. Sweeping every " + sweepInterval.String() + ".")
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	// Ahead of the first sweep, so a resident watcher started on a stale build
+	// hands over before it talks to the server rather than after.
+	if scheduled && residentHandover() {
+		ui.Println("Standing down so the new version takes over.")
+		return nil
+	}
 
 	watching, lastFull := firstSweep()
 
@@ -74,6 +105,15 @@ func watchResident() error {
 				// A package manager rewrites a lock file in several steps, and
 				// scanning between two of them reads a half written file.
 				time.Sleep(settleAfterMove)
+			}
+
+			// Checked here rather than on every tick, so the preferences file
+			// is read when a sweep is about to happen and not ten times a
+			// minute. This process cannot run the new code itself, so it stands
+			// down and lets the scheduler start the binary that replaced it.
+			if scheduled && residentHandover() {
+				ui.Println("Standing down so the new version takes over.")
+				return nil
 			}
 
 			result, err := runCycle()

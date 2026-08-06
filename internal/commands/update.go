@@ -15,14 +15,14 @@ import (
 
 const releaseRepo = "StackDrift-Net/stackdrift-cli"
 
-func Update(current string, args []string) error {
+func Update(current string, args []string) (string, error) {
 	force := false
 	for _, a := range args {
 		switch a {
 		case "--force", "-f":
 			force = true
 		default:
-			return fmt.Errorf("unknown option: %s", a)
+			return "", fmt.Errorf("unknown option: %s", a)
 		}
 	}
 
@@ -31,30 +31,54 @@ func Update(current string, args []string) error {
 
 	latest, err := fetchLatestTag(apiBase, releaseRepo)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	if !force && !needsUpdate(current, latest) {
 		fmt.Printf("Already on the latest version (%s).\n", latest)
-		return nil
+		return currentExecutable()
 	}
 
-	asset := assetName(runtime.GOOS, runtime.GOARCH)
-	url := downloadURL(downloadBase, releaseRepo, asset)
-
-	fmt.Printf("Downloading %s ...\n", asset)
-	tmp, err := downloadBinary(url)
+	fmt.Printf("Downloading %s ...\n", assetName(runtime.GOOS, runtime.GOARCH))
+	installed, err := fetchVerifyReplace(downloadBase, latest)
 	if err != nil {
-		return err
-	}
-	defer os.Remove(tmp)
-
-	if err := replaceRunning(tmp); err != nil {
-		return err
+		return "", err
 	}
 
 	fmt.Printf("Updated to %s.\n", latest)
-	return nil
+	return installed, nil
+}
+
+// fetchVerifyReplace is the whole download-and-install step, shared by the
+// command someone types and the background check the scheduled watch run makes.
+//
+// Nothing here prints. Interactive progress belongs to Update, and a service
+// that narrated every check would fill a journal for years.
+// It returns where the new binary was installed, which the caller cannot work
+// out for itself once the running image has been moved aside.
+func fetchVerifyReplace(downloadBase, tag string) (string, error) {
+	url := downloadURL(downloadBase, releaseRepo, tag, assetName(runtime.GOOS, runtime.GOARCH))
+
+	tmp, err := downloadBinary(url)
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmp)
+
+	// Checked before it is allowed anywhere near the running binary. Unattended
+	// there is nobody to notice that the machine has been handed an HTML error
+	// page, and on Unix the replace unlinks the only working copy.
+	if err := hasExecutableMagic(tmp, runtime.GOOS); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		return "", err
+	}
+	if err := trialRun(tmp, tag); err != nil {
+		return "", err
+	}
+
+	return replaceRunning(tmp)
 }
 
 func updateBase(key, fallback string) string {
@@ -72,8 +96,12 @@ func assetName(goos, goarch string) string {
 	return name
 }
 
-func downloadURL(base, repo, asset string) string {
-	return fmt.Sprintf("%s/%s/releases/latest/download/%s", base, repo, asset)
+// Pinned to the tag that was just read from the release feed rather than asking
+// for "latest" a second time. The two are independent resolutions, and
+// release.sh creates the release before it uploads the assets, so there is a
+// real window in which they disagree.
+func downloadURL(base, repo, tag, asset string) string {
+	return fmt.Sprintf("%s/%s/releases/download/%s/%s", base, repo, tag, asset)
 }
 
 func needsUpdate(current, latest string) bool {
@@ -106,6 +134,11 @@ func fetchLatestTag(apiBase, repo string) (string, error) {
 	data, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode == http.StatusNotFound {
 		return "", errors.New("no published release found (the repository may be private or have no releases yet)")
+	}
+	// GitHub answers 403 for an exhausted unauthenticated quota, which is a wait
+	// rather than a fault and reads nothing like a generic failure
+	if resp.StatusCode == http.StatusForbidden && resp.Header.Get("x-ratelimit-remaining") == "0" {
+		return "", errors.New("GitHub is rate limiting this address, so the update check was skipped")
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("could not check for updates (status %d)", resp.StatusCode)
@@ -173,33 +206,4 @@ func currentExecutable() (string, error) {
 		exe = resolved
 	}
 	return exe, nil
-}
-
-func replaceRunning(newPath string) error {
-	exe, err := currentExecutable()
-	if err != nil {
-		return err
-	}
-
-	if runtime.GOOS != "windows" {
-		if err := os.Chmod(newPath, 0o755); err != nil {
-			return err
-		}
-		if err := os.Rename(newPath, exe); err != nil {
-			return fmt.Errorf("could not replace %s: %w", exe, err)
-		}
-		return nil
-	}
-
-	old := exe + ".old"
-	os.Remove(old)
-	if err := os.Rename(exe, old); err != nil {
-		return fmt.Errorf("could not replace %s: %w", exe, err)
-	}
-	if err := os.Rename(newPath, exe); err != nil {
-		os.Rename(old, exe)
-		return fmt.Errorf("could not replace %s: %w", exe, err)
-	}
-	os.Remove(old)
-	return nil
 }

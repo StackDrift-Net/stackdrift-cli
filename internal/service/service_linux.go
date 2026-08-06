@@ -144,6 +144,72 @@ func intervalFromUnit(unit string) string {
 	return ""
 }
 
+// InstalledExec is the binary the installed unit actually starts, so a setting
+// can be changed without repointing the scheduler at whichever copy of the CLI
+// happened to run the command. Empty when there is nothing to read.
+func InstalledExec() string {
+	dir, err := unitDir()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(dir, Name+".service"))
+	if err != nil {
+		return ""
+	}
+	return execFromUnit(string(data))
+}
+
+func execFromUnit(unit string) string {
+	for _, line := range strings.Split(unit, "\n") {
+		rest, found := strings.CutPrefix(strings.TrimSpace(line), "ExecStart=")
+		if !found {
+			continue
+		}
+		return unquote(firstField(strings.TrimSpace(rest)))
+	}
+	return ""
+}
+
+// The path is the first argument, and it is quoted when it holds a space, so
+// splitting on spaces alone would cut such a path in half. quote escapes an
+// embedded quote, so the closing one has to be found past any escape or the
+// path is truncated and then written back truncated.
+func firstField(command string) string {
+	if !strings.HasPrefix(command, `"`) {
+		if space := strings.IndexAny(command, " \t"); space >= 0 {
+			return command[:space]
+		}
+		return command
+	}
+
+	for i := 1; i < len(command); i++ {
+		if command[i] == '\\' {
+			i++
+			continue
+		}
+		if command[i] == '"' {
+			return command[:i+1]
+		}
+	}
+	return command
+}
+
+func unquote(value string) string {
+	if len(value) < 2 || !strings.HasPrefix(value, `"`) || !strings.HasSuffix(value, `"`) {
+		return value
+	}
+
+	var out strings.Builder
+	body := value[1 : len(value)-1]
+	for i := 0; i < len(body); i++ {
+		if body[i] == '\\' && i+1 < len(body) {
+			i++
+		}
+		out.WriteByte(body[i])
+	}
+	return out.String()
+}
+
 func unitFile(plan Plan, realtime bool) string {
 	var body strings.Builder
 	body.WriteString("[Unit]\n")
@@ -155,14 +221,14 @@ func unitFile(plan Plan, realtime bool) string {
 
 	if realtime {
 		body.WriteString("Type=simple\n")
-		body.WriteString(fmt.Sprintf("ExecStart=%s watch --resident\n", quote(plan.Exec)))
+		body.WriteString(fmt.Sprintf("ExecStart=%s watch --resident %s\n", quote(plan.Exec), ScheduledFlag))
 		// A watcher that gives up on the first network blip is worse than no
 		// watcher, because nothing says it stopped.
 		body.WriteString("Restart=always\n")
 		body.WriteString("RestartSec=30\n")
 	} else {
 		body.WriteString("Type=oneshot\n")
-		body.WriteString(fmt.Sprintf("ExecStart=%s watch\n", quote(plan.Exec)))
+		body.WriteString(fmt.Sprintf("ExecStart=%s watch %s\n", quote(plan.Exec), ScheduledFlag))
 	}
 
 	// The scan reads the machine and talks to one host. Nothing it does needs
@@ -178,12 +244,35 @@ func unitFile(plan Plan, realtime bool) string {
 	body.WriteString("NoNewPrivileges=true\n")
 	body.WriteString("ProtectSystem=strict\n")
 	body.WriteString("ProtectHome=read-only\n")
-	body.WriteString("ReadWritePaths=%h/.stackdrift\n\n")
+	body.WriteString("ReadWritePaths=%h/.stackdrift" + writableExecDir(plan) + "\n\n")
 
 	if realtime {
 		body.WriteString("[Install]\nWantedBy=default.target\n")
 	}
 	return body.String()
+}
+
+// writableExecDir opens the sandbox by exactly one directory, and only for
+// someone who asked for auto-update.
+//
+// ProtectSystem=strict and ProtectHome=read-only leave the whole filesystem
+// read-only apart from the link store, which includes wherever the binary is
+// installed. Without this the update fails with "Read-only file system" before
+// a byte is downloaded, on every run, for ever. Verified against real systemd
+// both ways round.
+//
+// Prefixed with a dash so a directory that has since been removed leaves the
+// update failing rather than stopping the whole watcher from starting.
+func writableExecDir(plan Plan) string {
+	if !plan.AutoUpdate {
+		return ""
+	}
+
+	dir := filepath.Dir(plan.Exec)
+	if dir == "" || dir == "." || dir == "/" {
+		return ""
+	}
+	return " -" + quote(dir)
 }
 
 func timerFile(plan Plan) string {

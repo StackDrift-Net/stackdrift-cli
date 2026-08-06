@@ -57,7 +57,10 @@ func offerWatchService(assumeYes bool) {
 	if !ui.Confirm("Install it?", true) {
 		// Recorded as asked so the offer is not put again after every scan.
 		// Changing their mind is one command, which the decline says.
-		_ = config.SaveWatch(&config.WatchSettings{Asked: true, Enabled: false})
+		_ = config.UpdateWatch(func(s *config.WatchSettings) {
+			s.Asked = true
+			s.Enabled = false
+		})
 		ui.Println("Not installed. Run 'stackdrift service install' if you change your mind.")
 		return
 	}
@@ -69,7 +72,7 @@ func offerWatchService(assumeYes bool) {
 		return
 	}
 
-	if err := installService(interval); err != nil {
+	if err := installService(interval, resolveAutoUpdate(nil)); err != nil {
 		// A failed install must not be recorded as a decision, or the offer
 		// never comes back and the user is left with nothing watching.
 		ui.Println("Could not install the service: " + err.Error())
@@ -82,10 +85,10 @@ func offerWatchService(assumeYes bool) {
 // scheduler again. The interval comes from the installed unit, which is the
 // only record of it once the file it was saved to has gone.
 func adoptInstalledService(state service.State) {
-	_ = config.SaveWatch(&config.WatchSettings{
-		Asked:    true,
-		Enabled:  true,
-		Interval: state.Interval,
+	_ = config.UpdateWatch(func(s *config.WatchSettings) {
+		s.Asked = true
+		s.Enabled = true
+		s.Interval = state.Interval
 	})
 }
 

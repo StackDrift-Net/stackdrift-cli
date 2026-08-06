@@ -21,14 +21,6 @@ func TestAssetName_PerPlatform(t *testing.T) {
 	}
 }
 
-func TestDownloadURL_UsesLatestDownloadPath(t *testing.T) {
-	got := downloadURL("https://github.com", "owner/repo", "stackdrift-linux-amd64")
-	want := "https://github.com/owner/repo/releases/latest/download/stackdrift-linux-amd64"
-	if got != want {
-		t.Fatalf("got %q, want %q", got, want)
-	}
-}
-
 func TestNeedsUpdate_Cases(t *testing.T) {
 	cases := []struct {
 		current, latest string

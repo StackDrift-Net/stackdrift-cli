@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/StackDrift-Net/stackdrift-cli/internal/api"
+	"github.com/StackDrift-Net/stackdrift-cli/internal/commands"
 )
 
 func lockoutRefusal() error {
@@ -74,7 +75,7 @@ func TestRun_LapsedPlan_SaysWhatStillWorks(t *testing.T) {
 // locked out can never stop it replacing itself. The marker stands in for the
 // re-run, which is what makes a second refusal final.
 func TestRun_UpgradeRefusal_IsNotReadAsALapsedPlan(t *testing.T) {
-	t.Setenv(upgradedMarker, "1")
+	t.Setenv(commands.UpgradedMarker, "1")
 
 	code, stderr := runWith(t, &api.Error{Status: http.StatusUpgradeRequired, Message: "CLI update required"})
 

@@ -31,14 +31,11 @@ func Install(plan Plan) error {
 	_ = exec.Command("schtasks.exe", "/end", "/tn", taskName).Run()
 	_ = exec.Command("schtasks.exe", "/delete", "/tn", taskName, "/f").Run()
 
-	command := quoteTaskPath(plan.Exec) + " watch"
+	command := taskCommand(plan.Exec, plan.Interval)
 	timing := taskSchedule(plan.Interval)
 	realtime := plan.Interval == config.IntervalRealtime
 
 	if realtime {
-		// A resident watcher has no schedule of its own; it starts at logon and
-		// stays up, doing its own waiting.
-		command += " --resident"
 		timing = []string{"/sc", "ONLOGON"}
 	}
 
@@ -64,6 +61,16 @@ func Uninstall() error {
 	// watcher keeps going with nothing left to manage it.
 	_ = exec.Command("schtasks.exe", "/end", "/tn", taskName).Run()
 	return run("schtasks.exe", "/delete", "/tn", taskName, "/f")
+}
+
+// InstalledExec is the binary the registered task actually runs. Empty when
+// there is nothing to read.
+func InstalledExec() string {
+	output, err := exec.Command("schtasks.exe", "/query", "/tn", taskName, "/v", "/fo", "list").CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	return execFromTask(string(output))
 }
 
 func Status() (State, error) {

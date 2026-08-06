@@ -6,9 +6,21 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"golang.org/x/term"
 )
 
 var reader = bufio.NewReader(os.Stdin)
+
+// Interactive reports whether there is a person to answer.
+//
+// Ask discards the read error, so a closed or piped stdin comes back as an
+// empty line and Confirm reads that as the default. Anything whose default is
+// yes therefore has to check first, or a scripted run answers on the user's
+// behalf.
+func Interactive() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
 
 func Ask(prompt string) string {
 	fmt.Print(prompt)

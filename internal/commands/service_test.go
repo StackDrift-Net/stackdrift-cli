@@ -186,7 +186,7 @@ func statusLine(t *testing.T, lines []string, prefix string) string {
 // A timer armed for a daily sweep is idle almost all the time, so "running"
 // described the healthy state as if something were wrong.
 func TestStatusLines_Armed_ReadsAsScheduled(t *testing.T) {
-	lines := statusLines(service.State{Installed: true, Running: true}, config.IntervalDaily)
+	lines := statusLines(service.State{Installed: true, Running: true}, config.IntervalDaily, &config.WatchSettings{})
 
 	if got := statusLine(t, lines, "state:"); got != "state:    installed and scheduled" {
 		t.Fatalf("unexpected state line %q", got)
@@ -196,7 +196,7 @@ func TestStatusLines_Armed_ReadsAsScheduled(t *testing.T) {
 // The state Vince hit on spnix: enabled on disk, never pulled into the running
 // systemd manager, so nothing was scheduled at all. This must stay alarming.
 func TestStatusLines_NotArmed_StillSaysItIsNotRunning(t *testing.T) {
-	lines := statusLines(service.State{Installed: true, Running: false}, config.IntervalDaily)
+	lines := statusLines(service.State{Installed: true, Running: false}, config.IntervalDaily, &config.WatchSettings{})
 
 	if got := statusLine(t, lines, "state:"); got != "state:    installed but not running" {
 		t.Fatalf("a service the scheduler is not holding must not read as scheduled, got %q", got)
@@ -204,7 +204,7 @@ func TestStatusLines_NotArmed_StillSaysItIsNotRunning(t *testing.T) {
 }
 
 func TestStatusLines_NotInstalled_OffersTheInstallCommand(t *testing.T) {
-	lines := statusLines(service.State{}, "")
+	lines := statusLines(service.State{}, "", &config.WatchSettings{})
 
 	joined := strings.Join(lines, "\n")
 	if !strings.Contains(joined, "stackdrift service install") {
@@ -216,7 +216,7 @@ func TestStatusLines_NotInstalled_OffersTheInstallCommand(t *testing.T) {
 }
 
 func TestStatusLines_IntervalMissingFromTheState_UsesTheFallback(t *testing.T) {
-	lines := statusLines(service.State{Installed: true, Running: true}, config.IntervalWeekly)
+	lines := statusLines(service.State{Installed: true, Running: true}, config.IntervalWeekly, &config.WatchSettings{})
 
 	if got := statusLine(t, lines, "interval:"); got != "interval: weekly" {
 		t.Fatalf("unexpected interval line %q", got)

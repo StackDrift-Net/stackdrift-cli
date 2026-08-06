@@ -15,10 +15,20 @@ var ErrUnsupported = errors.New("a background service is not supported on this p
 // Plan is what to install. Exec is resolved to an absolute path before it is
 // written anywhere, because every scheduler here runs without a PATH worth
 // relying on and a bare command name would simply fail to start.
+//
+// AutoUpdate is part of the plan rather than a preference read later, because
+// on Linux it changes the unit itself. The sandbox has to be widened by one
+// directory for the update to be able to write anything at all.
 type Plan struct {
-	Interval string
-	Exec     string
+	Interval   string
+	Exec       string
+	AutoUpdate bool
 }
+
+// ScheduledFlag marks the run the scheduler starts, so it can be told apart
+// from a person typing "stackdrift watch". Nothing else distinguishes them, and
+// only the former has been agreed to replace an executable.
+const ScheduledFlag = "--scheduled"
 
 // State is what the platform reports back. Installed says the unit exists;
 // Running says the scheduler has it active. They differ while a service is

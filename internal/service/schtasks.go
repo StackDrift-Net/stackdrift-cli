@@ -27,6 +27,46 @@ func quoteTaskPath(value string) string {
 	return `"` + value + `"`
 }
 
+// taskCommand builds the whole /tr command string.
+//
+// schtasks takes one command line and has no way to set an environment
+// variable for the task, so the marker that says the scheduler started this run
+// has to be an argument. That is why ScheduledFlag is an argument on the other
+// two platforms as well rather than each doing something different.
+func taskCommand(exe, interval string) string {
+	command := quoteTaskPath(exe) + " watch"
+	if interval == config.IntervalRealtime {
+		// A resident watcher has no schedule of its own, it starts at logon and
+		// stays up doing its own waiting
+		command += " --resident"
+	}
+	return command + " " + ScheduledFlag
+}
+
+// execFromTask reads the binary out of the "Task To Run" field, which only the
+// verbose query prints. The command is the path followed by its arguments, and
+// a path holding a space is quoted, so the quotes are what bound it.
+func execFromTask(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		rest, found := strings.CutPrefix(strings.TrimSpace(line), "Task To Run:")
+		if !found {
+			continue
+		}
+		command := strings.TrimSpace(rest)
+		if strings.HasPrefix(command, `"`) {
+			if end := strings.Index(command[1:], `"`); end >= 0 {
+				return command[1 : end+1]
+			}
+			return strings.Trim(command, `"`)
+		}
+		if space := strings.IndexAny(command, " \t"); space >= 0 {
+			return command[:space]
+		}
+		return command
+	}
+	return ""
+}
+
 func taskSchedule(interval string) []string {
 	switch interval {
 	case config.IntervalFiveMin:

@@ -97,10 +97,11 @@ what you already track has moved, and updates the system for you. The answer is
 remembered per machine, including a no, so you are only asked once.
 
 ```
-stackdrift service install     choose how often it checks
-stackdrift service status      show whether it is installed and running
-stackdrift service uninstall   remove it
-stackdrift watch               run one check now, in the foreground
+stackdrift service install          choose how often it checks
+stackdrift service status           show whether it is installed and running
+stackdrift service auto-update on   keep the CLI itself up to date
+stackdrift service uninstall        remove it
+stackdrift watch                    run one check now, in the foreground
 ```
 
 Three intervals are offered: **daily**, **every other day** and **weekly**.
@@ -118,6 +119,49 @@ stackdrift service install --interval daily
 `5m`, `hourly` and `twicedaily` are still accepted here, and installs already
 running on them keep working, but they are no longer put to anyone choosing.
 `realtime` is the only one that stays resident; see what it costs, below.
+
+### Keeping the CLI itself up to date
+
+Installing the service also asks whether each scheduled check should install a
+newer CLI release before it scans. The default is yes. It runs first, ahead of
+everything else the check does, so a build the server no longer supports has
+already replaced itself before it asks the server anything.
+
+```
+stackdrift service auto-update on
+stackdrift service auto-update off
+stackdrift service install --auto-update      answer without being asked
+stackdrift service install --no-auto-update
+```
+
+`stackdrift service status` reports whether it is on and which release it last
+installed.
+
+Only the run the scheduler starts will ever replace the binary. Typing
+`stackdrift watch` yourself never does, and neither does an install that predates
+this feature: those stay as they are until you turn it on.
+
+The release comes from the public GitHub releases for the CLI, pinned to the tag
+the release feed named. Before anything is replaced the download has to be a real
+executable for this platform and has to run and report the version it claims to
+be. The binary it displaces is kept beside it as `stackdrift.prev`, and is put
+back if the swap fails.
+
+The check calls out at most once every 12 hours, so a machine on one of the
+shorter intervals does not call GitHub on every sweep.
+
+`--interval realtime` is the exception on Windows. A resident watcher can only
+take a new binary if something restarts it, and a scheduled task will not, so
+the resident Windows watcher never replaces itself and `service status` says so.
+Linux and macOS restart theirs, so it replaces the binary and stands down for the
+new one.
+
+Auto-update needs to be able to write the directory the CLI is installed in. On
+Linux the service runs in a sandbox that makes the whole filesystem read-only
+apart from what it is given, so turning auto-update on is what adds that one
+directory to the unit. If the directory is not writable at all, for example a
+root-owned `/usr/local/bin` under a user service, it says so once and stops
+checking rather than failing every run for ever.
 
 ### What it will and will not do
 
@@ -185,12 +229,17 @@ The service runs at low priority and idle IO, so it yields to everything else.
 | macOS | launchd agent | `~/Library/LaunchAgents/net.stackdrift.watch.plist` |
 | Windows | scheduled task | `StackDrift Watch` |
 
+The answers, and what the last update check found, are kept in
+`~/.stackdrift/watch.json`.
+
 It runs as you, not as root, because the credentials it needs are in your own
 config directory. On Linux the installer also enables lingering so the service
 keeps running on a server nobody is logged in to.
 
 The systemd unit is confined: `ProtectSystem=strict`, `ProtectHome=read-only`,
-`NoNewPrivileges`, and exactly one writable path, `~/.stackdrift`.
+`NoNewPrivileges`, and exactly one writable path, `~/.stackdrift`. Turning
+auto-update on adds a second one, the directory the CLI is installed in, and
+nothing else.
 
 ## Check for CVEs in CI
 

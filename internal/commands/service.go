@@ -38,8 +38,10 @@ func Service(args []string) error {
 		return serviceUninstall()
 	case "status":
 		return serviceStatus()
+	case "auto-update", "autoupdate":
+		return serviceAutoUpdate(args)
 	default:
-		return fmt.Errorf("unknown service action %q, expected install, uninstall or status", action)
+		return fmt.Errorf("unknown service action %q, expected install, uninstall, status or auto-update", action)
 	}
 }
 
@@ -57,29 +59,24 @@ func serviceInstall(args []string) error {
 		interval = chosen
 	}
 
-	return installService(interval)
+	return installService(interval, resolveAutoUpdate(args))
 }
 
-func installService(interval string) error {
+func installService(interval string, autoUpdate *bool) error {
 	exe, err := service.Executable()
 	if err != nil {
 		return err
 	}
 
-	if err := service.Install(service.Plan{Interval: interval, Exec: exe}); err != nil {
-		return hintedError(err)
-	}
-
-	if err := config.SaveWatch(&config.WatchSettings{
-		Asked:    true,
-		Enabled:  true,
-		Interval: interval,
-	}); err != nil {
+	if err := applyServicePlan(exe, interval, autoUpdate); err != nil {
 		return err
 	}
 
 	ui.Println()
 	ui.Println("Installed the " + service.Describe() + ", running " + config.IntervalLabel(interval) + ".")
+	if config.LoadWatch().AutoUpdateEnabled() && appliesToInterval(interval) {
+		ui.Println("It will install a newer CLI release before each check.")
+	}
 	ui.Println("Stop it any time with: stackdrift service uninstall")
 	return nil
 }
@@ -104,7 +101,10 @@ func serviceUninstall() error {
 
 	// Asked stays true so removing the service is not read as never having been
 	// offered one, which would put the question again after the next scan.
-	if err := config.SaveWatch(&config.WatchSettings{Asked: true, Enabled: false}); err != nil {
+	if err := config.UpdateWatch(func(s *config.WatchSettings) {
+		s.Asked = true
+		s.Enabled = false
+	}); err != nil {
 		return err
 	}
 
@@ -123,12 +123,13 @@ func serviceStatus() error {
 		return err
 	}
 
+	settings := config.LoadWatch()
 	interval := state.Interval
 	if interval == "" {
-		interval = config.LoadWatch().Interval
+		interval = settings.Interval
 	}
 
-	for _, line := range statusLines(state, interval) {
+	for _, line := range statusLines(state, interval, settings) {
 		ui.Println(line)
 	}
 	return nil
@@ -137,7 +138,7 @@ func serviceStatus() error {
 // statusLines is kept apart from the printing so the wording can be tested,
 // which is the whole point of a status command: it is read to decide whether
 // something is wrong.
-func statusLines(state service.State, interval string) []string {
+func statusLines(state service.State, interval string, settings *config.WatchSettings) []string {
 	if !state.Installed {
 		return []string{
 			"No background service is installed.",
@@ -157,9 +158,14 @@ func statusLines(state service.State, interval string) []string {
 	// scheduled rather than running. The other branch stays blunt: it means the
 	// scheduler is not holding the service at all and no sweep will ever fire.
 	if state.Running {
-		return append(lines, "  state:    installed and scheduled")
+		lines = append(lines, "  state:    installed and scheduled")
+	} else {
+		lines = append(lines, "  state:    installed but not running")
 	}
-	return append(lines, "  state:    installed but not running")
+
+	// Something that replaces an executable has to be visible to whoever reads
+	// this to find out what the machine is doing.
+	return append(lines, autoUpdateStatusLines(settings, interval)...)
 }
 
 func intervalArg(args []string) string {

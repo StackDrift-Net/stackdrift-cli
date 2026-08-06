@@ -51,10 +51,16 @@ func commandList() []command {
 				{Name: "install", Help: "install the service and choose how often it checks"},
 				{Name: "uninstall", Help: "remove the service"},
 				{Name: "status", Help: "show whether the service is installed and running"},
+				{Name: "auto-update", Help: "on or off: keep the CLI itself up to date on each check"},
 				{Name: "--interval", Help: "realtime, 5m, hourly, twicedaily, daily or weekly"},
+				{Name: "--auto-update", Help: "install without being asked about updating the CLI"},
+				{Name: "--no-auto-update", Help: "install without updating the CLI"},
 			}},
 		{name: "watch", run: commands.Watch, help: "check now for stack changes and update StackDrift",
-			options: []commands.OptionInfo{{Name: "--resident", Help: "stay running and watch continuously"}}},
+			options: []commands.OptionInfo{
+				{Name: "--resident", Help: "stay running and watch continuously"},
+				{Name: "--scheduled", Help: "run as the background service does, including its update check"},
+			}},
 		{name: "whoami", run: commands.Whoami, help: "show the signed in account"},
 		{name: "logout", run: commands.Logout, help: "remove the saved credentials"},
 		{name: "update", run: runUpdate, help: "download and install the latest release",
@@ -99,6 +105,13 @@ func run(args []string, registry map[string]command, stdout, stderr io.Writer) i
 
 	err := cmd.run(args[1:])
 
+	// A command that handed its work to a child process finishes on the child's
+	// result. Read first, because that child has already been through every
+	// judgement below and a second reading of its exit code would be wrong.
+	if code, coded := commands.ExitCode(err); coded {
+		return code
+	}
+
 	// Being behind is the one failure the same binary can never retry its way
 	// out of, so it updates itself and runs the command again. This stays ahead
 	// of every other reading of the failure, so a build that is both stale and
@@ -129,7 +142,8 @@ func showVersion([]string) error {
 }
 
 func runUpdate(args []string) error {
-	return commands.Update(version, args)
+	_, err := commands.Update(version, args)
+	return err
 }
 
 func runCompletion(args []string) error {

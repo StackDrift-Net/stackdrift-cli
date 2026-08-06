@@ -191,7 +191,7 @@ func TestUnitFile_Always_SweepsEveryProjectRatherThanOneDirectory(t *testing.T) 
 		if !found {
 			continue
 		}
-		if strings.TrimSpace(rest) != "/x/stackdrift watch" {
+		if strings.TrimSpace(rest) != "/x/stackdrift watch --scheduled" {
 			t.Fatalf("the sweep takes no directory argument, got %q", rest)
 		}
 	}
