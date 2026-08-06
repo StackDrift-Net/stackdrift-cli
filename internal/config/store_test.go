@@ -177,3 +177,46 @@ func TestLoadProject_ScanningTheDirectoryTheStoreLivesIn_IsNotALegacyLink(t *tes
 		t.Fatalf("expected no link for an unscanned directory, got %+v", loaded)
 	}
 }
+
+// A link is a file. Somebody else's store is a directory of the same name, and
+// scanning their home directory must not be read as finding a link there.
+//
+// Reported from the field: root ran a scan in /home/ubuntu, so the store
+// resolved to /root/.stackdrift while the legacy lookup landed on
+// /home/ubuntu/.stackdrift, which is the ubuntu user's own store directory. The
+// scan died with "read /home/ubuntu/.stackdrift: is a directory".
+func TestLoadProject_ScannedDirectoryHoldsAnotherStore_IsNotReadAsALink(t *testing.T) {
+	t.Setenv("STACKDRIFT_HOME", t.TempDir())
+
+	scanned := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(scanned, ProjectFileName, "12"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadProject(scanned)
+	if err != nil {
+		t.Fatalf("a directory of that name is not a link, got %v", err)
+	}
+	if cfg != nil {
+		t.Fatalf("expected no link, got %+v", cfg)
+	}
+}
+
+// The same shape one level down, so a damaged store cannot take the scan with
+// it either.
+func TestLoadProject_StoredLinkPathIsADirectory_IsSkipped(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("STACKDRIFT_HOME", home)
+
+	if err := os.MkdirAll(filepath.Join(home, "12", ProjectFileName), 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := LoadProject(t.TempDir())
+	if err != nil {
+		t.Fatalf("expected the broken entry skipped, got %v", err)
+	}
+	if cfg != nil {
+		t.Fatalf("expected no link, got %+v", cfg)
+	}
+}

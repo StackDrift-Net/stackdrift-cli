@@ -241,6 +241,14 @@ func readProjectFile(path string) (*ProjectConfig, error) {
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
+	// A link is a file, so a directory of that name is not one. The store and the
+	// old in-directory link share the name .stackdrift, so scanning a home
+	// directory that belongs to another account aims the legacy lookup straight
+	// at that account's store. Reading it fails with "is a directory" and took
+	// the whole scan down with it.
+	if err != nil && isDirectory(path) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -276,6 +284,11 @@ func (c *ProjectConfig) removePath(dir string) {
 		}
 	}
 	c.Paths = kept
+}
+
+func isDirectory(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func absolutePath(dir string) string {
