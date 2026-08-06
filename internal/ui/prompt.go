@@ -3,6 +3,7 @@ package ui
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -11,6 +12,10 @@ import (
 )
 
 var reader = bufio.NewReader(os.Stdin)
+
+// Out is where the CLI writes. Swapped in tests, which otherwise have no way to
+// read back what the user was actually told.
+var Out io.Writer = os.Stdout
 
 // Interactive reports whether there is a person to answer.
 //
@@ -23,7 +28,7 @@ func Interactive() bool {
 }
 
 func Ask(prompt string) string {
-	fmt.Print(prompt)
+	fmt.Fprint(Out, prompt)
 	line, _ := reader.ReadString('\n')
 	return strings.TrimSpace(line)
 }
@@ -53,9 +58,9 @@ func AskInt(prompt string, min, max int) (int, bool) {
 }
 
 func Println(args ...any) {
-	fmt.Println(args...)
+	fmt.Fprintln(Out, args...)
 }
 
 func Printf(format string, args ...any) {
-	fmt.Printf(format, args...)
+	fmt.Fprintf(Out, format, args...)
 }

@@ -50,6 +50,11 @@ func serviceInstall(args []string) error {
 		return service.ErrUnsupported
 	}
 
+	if !confirmNoDoubleUp() {
+		ui.Println("Nothing installed.")
+		return nil
+	}
+
 	interval := intervalArg(args)
 	if interval == "" {
 		chosen, ok := askInterval()

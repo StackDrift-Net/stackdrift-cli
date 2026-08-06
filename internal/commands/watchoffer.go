@@ -65,6 +65,11 @@ func offerWatchService(assumeYes bool) {
 		return
 	}
 
+	if !confirmNoDoubleUp() {
+		ui.Println("Nothing installed. Run 'stackdrift service install' if you change your mind.")
+		return
+	}
+
 	interval, ok := askInterval()
 	if !ok {
 		ui.Println("No valid choice made, so nothing was installed.")

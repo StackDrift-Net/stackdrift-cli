@@ -281,16 +281,23 @@ func decodeJSON(r *http.Request, out any) error {
 }
 
 // captureOutput collects what a command prints to stdout.
+//
+// ui.Out is swapped as well as os.Stdout, because ui resolves its writer once
+// at start-up, so replacing os.Stdout alone stops reaching anything printed
+// through ui.
 func captureOutput(fn func()) string {
 	original := os.Stdout
+	originalOut := ui.Out
 	r, w, err := os.Pipe()
 	if err != nil {
 		return ""
 	}
 	os.Stdout = w
+	ui.Out = w
 	fn()
 	_ = w.Close()
 	os.Stdout = original
+	ui.Out = originalOut
 
 	var buf bytes.Buffer
 	_, _ = io.Copy(&buf, r)

@@ -236,6 +236,15 @@ It runs as you, not as root, because the credentials it needs are in your own
 config directory. On Linux the installer also enables lingering so the service
 keeps running on a server nobody is logged in to.
 
+**The service belongs to the account that installs it.** Installing it as a
+second account gives the machine a second watcher, so install it as the account
+that owns the work rather than under `sudo` or `su`. Each watcher only ever
+sweeps the systems its own account scanned, so two of them only tread on each
+other when both accounts scanned the same directory. Install warns when it can
+see another account's watcher, though it can only see what your account is
+allowed to read, and on Windows the task is registered once for the machine so
+a second install takes over the existing one rather than adding another.
+
 The systemd unit is confined: `ProtectSystem=strict`, `ProtectHome=read-only`,
 `NoNewPrivileges`, and exactly one writable path, `~/.stackdrift`. Turning
 auto-update on adds a second one, the directory the CLI is installed in, and
