@@ -30,35 +30,60 @@ $url = "https://github.com/$repo/releases/latest/download/$binary"
 
 Write-Host "Installing the StackDrift CLI"
 
-function Test-OnPath($dir) {
-    $target = $dir.TrimEnd('\')
-    foreach ($part in ($env:Path -split ';')) {
-        if ($part.TrimEnd('\') -ieq $target) { return $true }
-    }
-    return $false
+# One install directory, always. WindowsApps was tried first because it is
+# already on PATH, but it is the OS App Execution Alias folder: Windows servicing
+# cleans it, alias entries can shadow a real binary of the same name, and being
+# "on PATH" there is itself an alias mechanism rather than an ordinary directory
+# entry. A folder we own has none of those problems.
+$installDir = Join-Path $env:LOCALAPPDATA "StackDrift"
+New-Item -ItemType Directory -Force -Path $installDir | Out-Null
+$target = Join-Path $installDir "stackdrift.exe"
+
+Write-Host "Downloading $url"
+Invoke-WebRequest -Uri $url -OutFile $target
+
+# Defender takes an interest in this binary, and a quarantine happens AFTER the
+# download reports success, so the file is confirmed rather than assumed.
+if (-not (Test-Path $target)) {
+    Write-Host "The download completed but $target is not there." -ForegroundColor Yellow
+    Write-Host "Windows Defender most likely quarantined it. Check Protection History."
+    return
 }
 
-$windowsApps = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
+Write-Host "Installed to $target"
 
-if ((Test-Path $windowsApps) -and (Test-OnPath $windowsApps)) {
-    $target = Join-Path $windowsApps "stackdrift.exe"
-    Write-Host "Downloading $url"
-    Invoke-WebRequest -Uri $url -OutFile $target
-    Write-Host "Installed to $target"
-    Write-Host "That directory is already on your PATH."
-}
-else {
-    $installDir = Join-Path $env:LOCALAPPDATA "StackDrift"
-    New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-    $target = Join-Path $installDir "stackdrift.exe"
-    Write-Host "Downloading $url"
-    Invoke-WebRequest -Uri $url -OutFile $target
-    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
-    if ($userPath -notlike "*$installDir*") {
-        [Environment]::SetEnvironmentVariable("Path", "$userPath;$installDir", "User")
-        Write-Host "Added $installDir to your PATH. Open a new terminal for it to take effect."
+# An earlier version of this installer put the binary in WindowsApps, which is
+# on PATH ahead of this directory. Left behind it would keep answering the
+# command and the update would look like it had done nothing.
+$stale = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps\stackdrift.exe"
+if ((Test-Path $stale) -and ($stale -ne $target)) {
+    Remove-Item $stale -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path $stale)) {
+        Write-Host "Removed an older copy from WindowsApps that would have shadowed this one."
     }
-    Write-Host "Installed to $target"
+}
+
+# The PERSISTED user PATH, read from the registry, not $env:Path. The session
+# variable is the machine PATH merged with whichever profile launched this
+# shell, so in an elevated window it says nothing about what an ordinary
+# terminal will see. Checking the wrong one is why an install could report
+# success and then not be found in the next window.
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+$onUserPath = $false
+foreach ($part in (($userPath -split ';') | Where-Object { $_ })) {
+    if ($part.TrimEnd('\') -ieq $installDir.TrimEnd('\')) { $onUserPath = $true }
+}
+
+if (-not $onUserPath) {
+    $updated = if ([string]::IsNullOrWhiteSpace($userPath)) { $installDir } else { "$userPath;$installDir" }
+    [Environment]::SetEnvironmentVariable("Path", $updated, "User")
+    Write-Host "Added $installDir to your PATH."
+}
+
+# The current session too, so the command works here as well as in the next
+# terminal. SetEnvironmentVariable only writes the registry.
+if ($env:Path -notlike "*$installDir*") {
+    $env:Path = "$env:Path;$installDir"
 }
 
 if (-not $env:STACKDRIFT_NO_COMPLETION) {
