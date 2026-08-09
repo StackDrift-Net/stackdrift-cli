@@ -30,6 +30,29 @@ $url = "https://github.com/$repo/releases/latest/download/$binary"
 
 Write-Host "Installing the StackDrift CLI"
 
+# Defender treats the CLI as a threat: it is an unsigned Go binary with no
+# reputation, and the verdict comes with persistence remediation, so it deletes
+# the scheduled task and its registry entries along with the executable.
+#
+# The remedy is an exclusion, and this script deliberately does not add one.
+# An installer that quietly exempts itself from antivirus is indistinguishable
+# from malware doing the same thing, it trips endpoint monitoring on managed
+# machines, and the excluded directory is exactly where the CLI's own updates
+# land. Whoever owns the machine decides, not us.
+function Show-DefenderRemediation($dir) {
+    Write-Host ""
+    Write-Host "Windows Defender has removed the StackDrift binary." -ForegroundColor Yellow
+    Write-Host "It is unsigned and newly published, which Defender treats as a threat. The"
+    Write-Host "scheduled task that runs the background checks is deleted along with it."
+    Write-Host ""
+    Write-Host "To proceed, run this as Administrator and then run the installer again:"
+    Write-Host ""
+    Write-Host "    Add-MpPreference -ExclusionPath `"$dir`""
+    Write-Host ""
+    Write-Host "That stops the directory being scanned, including future updates downloaded"
+    Write-Host "into it. This installer will not change your antivirus settings for you."
+}
+
 # One install directory, always. WindowsApps was tried first because it is
 # already on PATH, but it is the OS App Execution Alias folder: Windows servicing
 # cleans it, alias entries can shadow a real binary of the same name, and being
@@ -45,8 +68,7 @@ Invoke-WebRequest -Uri $url -OutFile $target
 # Defender takes an interest in this binary, and a quarantine happens AFTER the
 # download reports success, so the file is confirmed rather than assumed.
 if (-not (Test-Path $target)) {
-    Write-Host "The download completed but $target is not there." -ForegroundColor Yellow
-    Write-Host "Windows Defender most likely quarantined it. Check Protection History."
+    Show-DefenderRemediation $installDir
     return
 }
 
@@ -84,6 +106,18 @@ if (-not $onUserPath) {
 # terminal. SetEnvironmentVariable only writes the registry.
 if ($env:Path -notlike "*$installDir*") {
     $env:Path = "$env:Path;$installDir"
+}
+
+# Proves the binary can actually start. Defender blocks the first execution as
+# readily as it deletes the download, and that is how this failed before: the
+# install reported success, then died at the first use of the binary with an
+# error about a virus, leaving the CLI half set up.
+try {
+    & $target version | Out-Null
+}
+catch {
+    Show-DefenderRemediation $installDir
+    return
 }
 
 if (-not $env:STACKDRIFT_NO_COMPLETION) {
