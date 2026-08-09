@@ -205,10 +205,45 @@ func TestRuntimeDirEnv_VariableMissingAndDirectoryPresent_IsFilledIn(t *testing.
 	}
 }
 
-// Never override a caller who set it deliberately
-func TestRuntimeDirEnv_AlreadySet_IsLeftAlone(t *testing.T) {
-	if got := runtimeDirEnv("/run/user/1000", "/run/user/9", true); got != "" {
+// A caller already pointed at their OWN runtime directory is left alone. There
+// is nothing to correct and rewriting it would be noise.
+func TestRuntimeDirEnv_AlreadyPointingAtOurOwn_IsLeftAlone(t *testing.T) {
+	if got := runtimeDirEnv("/run/user/1000", "/run/user/1000", true); got != "" {
 		t.Fatalf("expected nothing added, got %q", got)
+	}
+}
+
+// The case that took two production servers out. "su ubuntu" from a root shell
+// keeps root's XDG_RUNTIME_DIR, because non-login su sets only HOME, SHELL,
+// USER and LOGNAME. Every systemctl --user call then aims at uid 0's manager
+// while running as uid 1000 and fails, so the install writes its unit files and
+// schedules nothing.
+//
+// This used to be read as "the caller set it deliberately, leave it alone".
+// Nobody sets it deliberately to another user's directory; it is inherited, and
+// it is always wrong.
+func TestRuntimeDirEnv_SetToAnotherUsersDirectory_IsCorrected(t *testing.T) {
+	if got := runtimeDirEnv("/run/user/0", "/run/user/1000", true); got != "XDG_RUNTIME_DIR=/run/user/1000" {
+		t.Fatalf("a directory belonging to another uid has to be replaced with our own, got %q", got)
+	}
+}
+
+// Ours has to exist to be worth pointing at, even when theirs is wrong.
+func TestRuntimeDirEnv_SetToAnotherUsersDirectoryAndOursIsMissing_IsLeftAlone(t *testing.T) {
+	if got := runtimeDirEnv("/run/user/0", "/run/user/1000", false); got != "" {
+		t.Fatalf("pointing at a directory that does not exist fixes nothing, got %q", got)
+	}
+}
+
+// Anything that is not exactly our own path is rewritten to the canonical one.
+// Matching loosely and then passing the original through was a hole: a value
+// with whitespace around it compares equal after trimming and then fails,
+// whitespace and all, in the child process.
+func TestRuntimeDirEnv_OurOwnWrittenDifferently_IsCanonicalised(t *testing.T) {
+	for _, current := range []string{"/run/user/1000/", " /run/user/1000 ", "/run/user/1000//"} {
+		if got := runtimeDirEnv(current, "/run/user/1000", true); got != "XDG_RUNTIME_DIR=/run/user/1000" {
+			t.Fatalf("%q should be replaced with the canonical path, got %q", current, got)
+		}
 	}
 }
 
@@ -291,5 +326,80 @@ func TestCommand_NoRuntimeDirInTheEnvironment_StillReachesTheUserBus(t *testing.
 
 	if err := command("systemctl", "--user", "is-active", "--quiet", "timers.target").Run(); err != nil {
 		t.Fatalf("a caller with no session variables must still reach its own bus, got %v", err)
+	}
+}
+
+// Supplying XDG_RUNTIME_DIR on its own is not enough. sd-bus reads
+// DBUS_SESSION_BUS_ADDRESS first and honours it even when it is empty or points
+// at a bus this user cannot open, which is what ssh, cron and su leave behind.
+// The directory we just supplied is then never consulted and the call fails
+// anyway, which is the state every install over ssh was in.
+func TestWithoutBusAddress_StaleAddress_IsRemoved(t *testing.T) {
+	env := withoutBusAddress([]string{"HOME=/home/vince", "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/0/bus", "PATH=/usr/bin"})
+
+	for _, entry := range env {
+		if strings.HasPrefix(entry, "DBUS_SESSION_BUS_ADDRESS=") {
+			t.Fatalf("the stale address survived: %+v", env)
+		}
+	}
+	if len(env) != 2 {
+		t.Fatalf("only the bus address should have gone, got %+v", env)
+	}
+}
+
+func TestWithoutBusAddress_EmptyAddress_IsRemoved(t *testing.T) {
+	env := withoutBusAddress([]string{"DBUS_SESSION_BUS_ADDRESS=", "HOME=/home/vince"})
+
+	if len(env) != 1 || env[0] != "HOME=/home/vince" {
+		t.Fatalf("an empty address is honoured by sd-bus too, got %+v", env)
+	}
+}
+
+func TestWithoutBusAddress_NoAddress_ChangesNothing(t *testing.T) {
+	env := withoutBusAddress([]string{"HOME=/home/vince", "PATH=/usr/bin"})
+
+	if len(env) != 2 {
+		t.Fatalf("nothing to remove, got %+v", env)
+	}
+}
+
+// A variable that merely starts with the same letters is a different variable
+func TestWithoutBusAddress_SimilarlyNamedVariable_IsKept(t *testing.T) {
+	env := withoutBusAddress([]string{"DBUS_SESSION_BUS_ADDRESS_BACKUP=unix:path=/run/user/0/bus"})
+
+	if len(env) != 1 {
+		t.Fatalf("only the exact variable goes, got %+v", env)
+	}
+}
+
+// The bus address is stripped even when the caller's runtime directory is
+// already correct. Welding the two together left this exact case broken: on a
+// machine whose user-manager private socket is unusable, systemctl falls back to
+// the bus address and honours it over the directory, so a stale value still
+// killed every call.
+func TestCommand_CorrectRuntimeDirButAStaleBusAddress_StillStripsTheAddress(t *testing.T) {
+	if !runtimeDirExists() {
+		t.Skip("no user runtime directory on this machine")
+	}
+	t.Setenv("XDG_RUNTIME_DIR", defaultRuntimeDir())
+	t.Setenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/0/bus")
+
+	for _, entry := range command("true").Env {
+		if strings.HasPrefix(entry, "DBUS_SESSION_BUS_ADDRESS=") {
+			t.Fatal("a bus address belonging to another user must not reach the child")
+		}
+	}
+}
+
+// Nothing is touched when this user has no runtime directory at all, because
+// there is no correct value to substitute and the child's own environment is
+// the only thing it has to go on.
+func TestCommand_NoRuntimeDirectoryForThisUser_LeavesTheEnvironmentAlone(t *testing.T) {
+	if runtimeDirExists() {
+		t.Skip("this user has a runtime directory, so the branch cannot be reached")
+	}
+
+	if command("true").Env != nil {
+		t.Fatal("with nothing to correct the child should inherit the environment untouched")
 	}
 }

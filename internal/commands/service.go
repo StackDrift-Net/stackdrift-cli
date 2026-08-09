@@ -160,11 +160,22 @@ func statusLines(state service.State, interval string, settings *config.WatchSet
 	}
 
 	// Armed is the healthy state and it is idle almost all the time, so it says
-	// scheduled rather than running. The other branch stays blunt: it means the
-	// scheduler is not holding the service at all and no sweep will ever fire.
-	if state.Running {
+	// scheduled rather than running.
+	//
+	// The two unhealthy branches are deliberately not one. A unit that is
+	// enabled but not held has stopped and will be picked up again at the next
+	// boot; a unit that was never enabled will not run again on this machine
+	// ever, and read as merely "not running" it looks like the same mild
+	// problem. That reading is what let two servers sit for a week reporting an
+	// installed service whose timer had never once fired.
+	switch {
+	case state.Running:
 		lines = append(lines, "  state:    installed and scheduled")
-	} else {
+	case !state.Enabled:
+		lines = append(lines,
+			"  state:    installed but NOT enabled, so it will never run",
+			"  Repair it with: stackdrift service install")
+	default:
 		lines = append(lines, "  state:    installed but not running")
 	}
 

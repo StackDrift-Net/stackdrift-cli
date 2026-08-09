@@ -30,12 +30,23 @@ type Plan struct {
 // only the former has been agreed to replace an executable.
 const ScheduledFlag = "--scheduled"
 
-// State is what the platform reports back. Installed says the unit exists;
-// Running says the scheduler has it active. They differ while a service is
-// installed but stopped, which is exactly the case a status command exists to
-// show.
+// State is what the platform reports back.
+//
+// The three flags are separate because each one fails on its own and each has a
+// different remedy:
+//
+//   - Installed says the unit, agent or task exists on disk. It is the weakest
+//     of the three and on its own means nothing: a file can sit there for a year
+//     without the scheduler ever having heard of it.
+//   - Enabled says the scheduler has been told to hold it. This is what an
+//     install over ssh silently failed to achieve for months, and it is the
+//     difference between "will run again" and "will never run again".
+//   - Running says the scheduler is holding it right now, armed and waiting.
+//
+// Only all three together mean the machine is actually being watched.
 type State struct {
 	Installed bool
+	Enabled   bool
 	Running   bool
 	Interval  string
 	Detail    string

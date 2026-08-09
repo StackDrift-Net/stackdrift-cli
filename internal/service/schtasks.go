@@ -67,6 +67,59 @@ func execFromTask(output string) string {
 	return ""
 }
 
+// taskStep is one schtasks invocation. Required says whether failing it means
+// the install failed, which is a policy decision rather than a detail, so it
+// lives in the data instead of in the loop that runs it.
+type taskStep struct {
+	Args     []string
+	Required bool
+}
+
+// taskInstallSteps is every schtasks invocation an install makes, in order.
+//
+// It lives here rather than inline in service_windows.go for the reason the
+// whole file exists: the ordering and the required/optional split carry the
+// behaviour, and this way they are tested on every platform instead of only on
+// the one machine nobody runs the suite on.
+//
+// Two of these are worth explaining.
+//
+// The task is STARTED immediately whatever the interval, not just for realtime.
+// schtasks with no /st takes the creation time as the trigger, so a weekly task
+// created at noon does not run for seven days, and until it runs the website is
+// still holding the interval this machine reported LAST time and working its
+// overdue deadline out from that. Shortening the wait between checks would
+// therefore raise a "checks have stopped" alarm on a machine that had just been
+// made healthier. Linux gets the same property free from OnBootSec=2min and
+// macOS from RunAtLoad.
+//
+// But that start is NOT required. Once /create returns, the task is registered,
+// enabled and scheduled, so the install has succeeded. A task created without
+// /ru carries an InteractiveToken principal and an on-demand start can be
+// refused over a non-interactive ssh, WinRM or CI session. Failing the install
+// on that would leave the old task deleted, the new one running, and the
+// preference unsaved, so the machine would keep one schedule while the CLI
+// reported another. A missed kick-off costs only a delay.
+func taskInstallSteps(plan Plan) []taskStep {
+	timing := taskSchedule(plan.Interval)
+	if plan.Interval == config.IntervalRealtime {
+		// No schedule of its own: it starts at logon and does its own waiting.
+		timing = []string{"/sc", "ONLOGON"}
+	}
+
+	create := append([]string{"/create", "/tn", taskName, "/f", "/tr", taskCommand(plan.Exec, plan.Interval)}, timing...)
+
+	return []taskStep{
+		// /end before /delete, because /delete removes the definition but
+		// leaves any instance it started running. Both are expected to fail on
+		// a machine that has no task yet.
+		{Args: []string{"/end", "/tn", taskName}},
+		{Args: []string{"/delete", "/tn", taskName, "/f"}},
+		{Args: create, Required: true},
+		{Args: []string{"/run", "/tn", taskName}},
+	}
+}
+
 func taskSchedule(interval string) []string {
 	switch interval {
 	case config.IntervalFiveMin:
@@ -88,21 +141,39 @@ func taskSchedule(interval string) []string {
 	}
 }
 
-// taskStatus reads whether the task is live. Ready means scheduled and waiting;
-// Running means a scan is happening right now.
+// taskEnabled reads whether the scheduler will ever start the task again.
+//
+// Only an explicit Disabled counts. Everything else, including output with no
+// status field at all, is read as live: the query answered, so the task exists.
+//
+// There is one function here rather than two because /fo LIST localises BOTH the
+// field name and its value, so nothing in this output distinguishes armed from
+// enabled anywhere but English. There used to be a second function matching the
+// English words "Ready" and "Running", and it failed closed on anything it could
+// not parse. That was survivable while it only coloured a status line. It
+// stopped being survivable when a failed reading began rejecting the install
+// itself: on a German or Japanese Windows every install was rolled back over a
+// task that was registered and would have run perfectly.
+//
+// Be honest about what this costs. Because the field NAME is localised too, the
+// prefix never matches on those machines and this returns true for every
+// registered task, a disabled one included. So on non-English Windows the
+// enabled probe degrades to a constant and a task the user disabled by hand is
+// not detected. The fail-open direction is still the right trade, because the
+// alternative rejected working installs, but the durable fix is to read
+// /query /xml, whose <Enabled> element is not translated. That is a bigger
+// change than this one and has not been made.
 //
 // Only the status field is read. Searching the whole body was wrong: the
-// non-verbose /fo LIST output always carries a "Logon Mode:" field, so matching
-// it for the schedule reported every task as near realtime whatever it was set
-// to, and words like "Ready" turn up in task names and folders as well.
-func taskStatus(output string) bool {
+// non-verbose /fo LIST output always carries a "Logon Mode:" field, and words
+// like "Ready" turn up in task names and folders as well.
+func taskEnabled(output string) bool {
 	for _, line := range strings.Split(output, "\n") {
 		rest, found := strings.CutPrefix(strings.TrimSpace(line), "Status:")
 		if !found {
 			continue
 		}
-		status := strings.ToLower(strings.TrimSpace(rest))
-		return status == "ready" || status == "running"
+		return strings.ToLower(strings.TrimSpace(rest)) != "disabled"
 	}
-	return false
+	return true
 }

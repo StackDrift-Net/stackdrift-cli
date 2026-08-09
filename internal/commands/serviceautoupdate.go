@@ -13,7 +13,9 @@ import (
 )
 
 // Swapped in tests, which cannot install a real unit
-var installPlan = service.Install
+// InstallVerified rather than Install, so a saved preference can only ever be
+// written for a service the scheduler was seen to be holding afterwards.
+var installPlan = service.InstallVerified
 
 // serviceAutoUpdate turns the setting on or off without disturbing anything
 // else about the install.

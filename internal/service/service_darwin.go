@@ -95,7 +95,15 @@ func Status() (State, error) {
 
 	state.Installed = true
 	state.Interval = intervalFromPlist(string(data))
-	state.Running = exec.Command("launchctl", "list", label).Run() == nil
+
+	// launchd draws no line between armed and enabled for an interval agent.
+	// Either it has been bootstrapped into the user's domain, in which case it
+	// is both, or it has not, in which case it is neither. The two flags are
+	// reported from the one probe rather than inventing a distinction the
+	// platform does not have.
+	loaded := exec.Command("launchctl", "list", label).Run() == nil
+	state.Enabled = loaded
+	state.Running = loaded
 	return state, nil
 }
 

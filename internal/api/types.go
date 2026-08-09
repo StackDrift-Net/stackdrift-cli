@@ -54,9 +54,14 @@ type UpdateKernelRequest struct {
 // ScanReportRequest is what the machine had to say about itself when a check
 // finished. The counts are pointers so a machine nobody could ask sends null
 // rather than zero, which the website would draw as nothing waiting.
+// IntervalHours is how often this machine has undertaken to check, so the
+// website can tell a system that stopped reporting from one that was only ever
+// scanned by hand. Zero means this machine had a schedule and no longer has
+// one; null means it never had one and is not speaking for anybody else's.
 type ScanReportRequest struct {
 	PendingUpdates  *int `json:"pendingUpdates"`
 	SecurityUpdates *int `json:"securityUpdates"`
+	IntervalHours   *int `json:"intervalHours"`
 }
 
 type ManifestFile struct {

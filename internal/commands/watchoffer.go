@@ -27,6 +27,11 @@ func offerWatchService(assumeYes bool) {
 
 	settings := config.LoadWatch()
 	if settings.Asked {
+		// Answered once and never asked again, which is right, but it also
+		// meant a service that stopped being scheduled stayed that way for
+		// ever. A scan is the only thing still running on such a machine, so it
+		// is the only thing that can put it back.
+		repairWatchService(settings)
 		return
 	}
 
@@ -36,6 +41,14 @@ func offerWatchService(assumeYes bool) {
 	// "Not installed" printed over a service that is still running.
 	if state, err := service.Status(); err == nil && state.Installed {
 		adoptInstalledService(state)
+
+		// Adopting only records that this machine is meant to be covered, which
+		// is not the same as being covered. This branch is reached when the
+		// preferences file is missing or damaged, and a machine in that state is
+		// just as likely to have the unit files with nothing scheduling them,
+		// which is exactly the fault everything here exists to catch. Repairing
+		// on the same run means it is fixed now rather than at the next scan.
+		repairWatchService(config.LoadWatch())
 		return
 	}
 

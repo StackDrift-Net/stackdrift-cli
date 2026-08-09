@@ -156,7 +156,10 @@ func scan(client *api.Client, dir string, assumeYes bool) error {
 // important one, so a server too old to know the endpoint, or a network that
 // drops on the way out, is swallowed: turning work that already succeeded into
 // a failure would be a far worse trade than an undated scan.
+// The schedule is attached here rather than by each caller, so a hand-run scan
+// and a scheduled sweep report it identically and neither can forget to.
 func reportScan(client *api.Client, projectID int, updates api.ScanReportRequest) {
+	updates.IntervalHours = scheduleHours(config.LoadWatch())
 	_ = client.ReportScan(projectID, updates)
 }
 

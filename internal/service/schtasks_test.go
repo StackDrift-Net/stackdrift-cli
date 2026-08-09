@@ -69,41 +69,69 @@ func TestTaskSchedule_FiveMinutes_UsesTheMinuteModifier(t *testing.T) {
 // Non-verbose schtasks output always carries a "Logon Mode:" field, so matching
 // the whole body for the word reported every task as near realtime whatever it
 // was really set to. Only the status field is read now.
-func TestTaskStatus_ReadyTaskWithALogonModeField_IsRunning(t *testing.T) {
-	output := "TaskName: \\StackDrift Watch\r\nNext Run Time: 30/07/2026 14:00:00\r\n" +
-		"Status: Ready\r\nLogon Mode: Interactive/Background\r\n"
 
-	if !taskStatus(output) {
-		t.Fatalf("a ready task is live:\n%s", output)
+func TestTaskEnabled_ReadyTask_IsEnabled(t *testing.T) {
+	if !taskEnabled("Status: Ready\r\n") {
+		t.Fatal("a scheduled and waiting task is enabled")
 	}
 }
 
-func TestTaskStatus_DisabledTask_IsNotRunning(t *testing.T) {
-	output := "TaskName: \\StackDrift Watch\r\nStatus: Disabled\r\nLogon Mode: Interactive/Background\r\n"
-
-	if taskStatus(output) {
-		t.Fatalf("a disabled task is not live:\n%s", output)
+// The distinction this flag exists for. A disabled task is still registered, so
+// every file-existence check reports it as installed while it never runs again.
+func TestTaskEnabled_DisabledTask_IsNotEnabled(t *testing.T) {
+	if taskEnabled("TaskName: \\StackDrift Watch\r\nStatus: Disabled\r\n") {
+		t.Fatal("a disabled task will never run, so it is not enabled")
 	}
 }
 
-func TestTaskStatus_RunningTask_IsRunning(t *testing.T) {
-	if !taskStatus("Status: Running\r\n") {
-		t.Fatal("a task mid-scan is live")
+// A task mid-scan is obviously not switched off, and reading it as such during
+// the seconds a sweep takes would fail a verified install at random.
+func TestTaskEnabled_RunningTask_IsEnabled(t *testing.T) {
+	if !taskEnabled("Status: Running\r\n") {
+		t.Fatal("a task mid-scan is enabled")
 	}
 }
 
-// The word "Ready" appears in the task name and folder of plenty of real
-// installs. Reading the whole body would match those too.
-func TestTaskStatus_WordAppearsOutsideTheStatusField_IsIgnored(t *testing.T) {
-	output := "TaskName: \\Ready Player One\\StackDrift Watch\r\nStatus: Disabled\r\n"
-
-	if taskStatus(output) {
-		t.Fatalf("only the status field decides:\n%s", output)
+// schtasks answered, the task is there, and the field is missing or in a
+// language this does not read. Guessing "disabled" would roll back a good
+// install on every non-English Windows.
+func TestTaskEnabled_NoStatusField_IsEnabled(t *testing.T) {
+	if !taskEnabled("TaskName: \\StackDrift Watch\r\n") {
+		t.Fatal("only an explicit Disabled means disabled")
 	}
 }
 
-func TestTaskStatus_NoStatusField_IsNotRunning(t *testing.T) {
-	if taskStatus("TaskName: \\StackDrift Watch\r\n") {
-		t.Fatal("output with no status must not be read as running")
+// The regression this replaced taskStatus for. taskStatus read the status field
+// as an English word and returned false for anything else, so on a German or
+// Japanese Windows a perfectly good task reported as not running. Once
+// verifyInstalled started treating "not running" as a failed install, that
+// rejected every install on a non-English machine and left the preference
+// unsaved, so the CLI reinstalled a working task on every scan.
+func TestTaskEnabled_LocalisedStatus_IsStillLive(t *testing.T) {
+	for _, output := range []string{
+		"TaskName: \\StackDrift Watch\r\nStatus: Bereit\r\n",
+		"TaskName: \\StackDrift Watch\r\nStatut: Prêt\r\n",
+		"TaskName: \\StackDrift Watch\r\nStatus: 準備完了\r\n",
+	} {
+		if !taskEnabled(output) {
+			t.Fatalf("a registered task must not be read as dead because its status is not in English:\n%s", output)
+		}
+	}
+}
+
+// The one word that does mean the scheduler will not start it, whatever the
+// casing schtasks happens to use.
+func TestTaskEnabled_DisabledInAnyCasing_IsNotLive(t *testing.T) {
+	for _, output := range []string{"Status: Disabled\r\n", "Status: DISABLED\r\n", "Status: disabled\r\n"} {
+		if taskEnabled(output) {
+			t.Fatalf("a disabled task will never run:\n%s", output)
+		}
+	}
+}
+
+// "Ready" turns up in task names and folders. Only the status field decides.
+func TestTaskEnabled_WordAppearsOutsideTheStatusField_IsIgnored(t *testing.T) {
+	if taskEnabled("TaskName: \\Ready Player One\\StackDrift Watch\r\nStatus: Disabled\r\n") {
+		t.Fatalf("only the status field decides")
 	}
 }

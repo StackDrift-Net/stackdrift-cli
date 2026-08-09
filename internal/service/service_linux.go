@@ -119,9 +119,11 @@ func Status() (State, error) {
 	timerUnit := filepath.Join(dir, Name+".timer")
 	_, timerErr := os.Stat(timerUnit)
 	if timerErr == nil {
+		state.Enabled = unitEnabled(Name + ".timer")
 		state.Running = active(Name + ".timer")
 		state.Detail = "systemd timer " + Name + ".timer"
 	} else if state.Installed {
+		state.Enabled = unitEnabled(Name + ".service")
 		state.Running = active(Name + ".service")
 		state.Detail = "systemd service " + Name + ".service"
 	}
@@ -313,15 +315,66 @@ func active(unit string) bool {
 	return command("systemctl", "--user", "is-active", "--quiet", unit).Run() == nil
 }
 
+// unitEnabled asks whether the manager will pull the unit in on its own.
+//
+// Only ever called for the unit that carries the [Install] section, which is
+// the timer on a schedule and the service in realtime. is-enabled exits zero
+// for "static" as well, so calling it on the oneshot service behind a timer
+// would answer yes about a unit nothing is scheduling.
+func unitEnabled(unit string) bool {
+	return command("systemctl", "--user", "is-enabled", "--quiet", unit).Run() == nil
+}
+
 // Fills XDG_RUNTIME_DIR when the caller has none
 // sd-bus derives the user bus address from it alone, so ssh, cron and su fail
 // with ENOMEDIUM even when the socket is sitting there
+//
+// The bus address goes with it. Supplying the directory and leaving that
+// variable behind fixes nothing, because sd-bus reads it first and honours it
+// even when it is empty or names a bus belonging to whoever was logged in
+// before a su. The directory is then never consulted and the call still fails,
+// which is how installs over ssh managed to write their unit files and schedule
+// nothing at all.
 func command(name string, args ...string) *exec.Cmd {
 	cmd := exec.Command(name, args...)
-	if entry := runtimeDirEnv(os.Getenv("XDG_RUNTIME_DIR"), defaultRuntimeDir(), runtimeDirExists()); entry != "" {
-		cmd.Env = append(os.Environ(), entry)
+
+	// The two corrections are decided separately, because they answer different
+	// questions and welding them together left a real case broken.
+	//
+	// The bus address is dropped whenever this user has a runtime directory of
+	// their own, not only when we are also replacing the variable. systemctl
+	// tries $XDG_RUNTIME_DIR/systemd/private first and ignores the bus address
+	// entirely when that connects, so on a healthy machine this costs nothing.
+	// When that socket is unusable it falls back to sd_bus_default_user, which
+	// prefers the variable over the directory, so a caller whose directory was
+	// ALREADY correct but who carried a stale address still failed. Verified by
+	// strace: connect(/run/user/1000/systemd/private) ECONNREFUSED, then
+	// connect(/run/user/0/bus) ENOENT.
+	exists := runtimeDirExists()
+	if !exists {
+		return cmd
+	}
+
+	cmd.Env = withoutBusAddress(os.Environ())
+	if entry := runtimeDirEnv(os.Getenv("XDG_RUNTIME_DIR"), defaultRuntimeDir(), exists); entry != "" {
+		cmd.Env = append(cmd.Env, entry)
 	}
 	return cmd
+}
+
+// Only ever called alongside a supplied XDG_RUNTIME_DIR, so a caller with a
+// working session of their own keeps whatever they set.
+func withoutBusAddress(environ []string) []string {
+	const key = "DBUS_SESSION_BUS_ADDRESS="
+
+	out := make([]string, 0, len(environ))
+	for _, entry := range environ {
+		if strings.HasPrefix(entry, key) {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 func defaultRuntimeDir() string {
@@ -333,9 +386,29 @@ func runtimeDirExists() bool {
 	return err == nil && info.IsDir()
 }
 
-// Empty means add nothing, a caller who set it deliberately is never overridden
+// runtimeDirEnv decides whether to supply XDG_RUNTIME_DIR, returning empty for
+// leave it alone.
+//
+// It corrects two cases, and the second one is not obvious. Missing is the easy
+// one: ssh, cron and a bare su leave it unset. The other is a value inherited
+// from a DIFFERENT user, which is what "su ubuntu" from a root shell produces,
+// because non-login su passes only HOME, SHELL, USER and LOGNAME through and
+// root's /run/user/0 survives into a process running as uid 1000. Every
+// systemctl --user call then aims at the wrong manager and fails.
+//
+// That case used to be left alone on the grounds that the caller had set it
+// deliberately. Nobody deliberately points at another user's runtime directory.
+// It is inherited, it is always wrong, and treating it as a considered choice
+// is how two servers ended up with unit files and no schedule.
 func runtimeDirEnv(current, dir string, exists bool) string {
-	if strings.TrimSpace(current) != "" || !exists {
+	if !exists {
+		return ""
+	}
+	// Only an exact match is left alone. Anything else is rewritten to the
+	// canonical path, which costs nothing and closes the hole where a value
+	// that merely LOOKS equal after trimming is passed through unchanged and
+	// then fails, whitespace and all, in the child.
+	if current == dir {
 		return ""
 	}
 	return "XDG_RUNTIME_DIR=" + dir

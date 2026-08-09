@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-
-	"github.com/StackDrift-Net/stackdrift-cli/internal/config"
 )
 
 // A scheduled task rather than a Windows service, because a real service has to
@@ -24,32 +22,24 @@ func Install(plan Plan) error {
 		return ErrUnsupported
 	}
 
-	// /end first, because /delete removes the task definition but leaves any
-	// instance it started running. Without this a resident watcher survives
-	// both an uninstall and an interval change, and goes on scanning under a
-	// schedule that no longer exists.
-	_ = exec.Command("schtasks.exe", "/end", "/tn", taskName).Run()
-	_ = exec.Command("schtasks.exe", "/delete", "/tn", taskName, "/f").Run()
+	// The order, and which steps are allowed to fail, are settled by
+	// taskInstallSteps. It is untagged so both are tested on every platform
+	// rather than only on the one machine nobody runs the suite on.
+	for _, step := range taskInstallSteps(plan) {
+		if !step.Required {
+			// Tearing the old task down, and kicking the new one off. Neither
+			// says anything about whether the install worked: there is usually
+			// nothing to tear down, and by the time the kick-off runs the task
+			// is already registered and scheduled.
+			_ = exec.Command("schtasks.exe", step.Args...).Run()
+			continue
+		}
 
-	command := taskCommand(plan.Exec, plan.Interval)
-	timing := taskSchedule(plan.Interval)
-	realtime := plan.Interval == config.IntervalRealtime
-
-	if realtime {
-		timing = []string{"/sc", "ONLOGON"}
+		if err := run("schtasks.exe", step.Args...); err != nil {
+			return err
+		}
 	}
 
-	args := append([]string{"/create", "/tn", taskName, "/f", "/tr", command}, timing...)
-	if err := run("schtasks.exe", args...); err != nil {
-		return err
-	}
-
-	if realtime {
-		// ONLOGON means the next logon, which on a machine already logged in is
-		// whenever it next reboots. Start it now so choosing near realtime
-		// starts watching now.
-		return run("schtasks.exe", "/run", "/tn", taskName)
-	}
 	return nil
 }
 
@@ -90,7 +80,14 @@ func Status() (State, error) {
 	// searching the whole body reported every task as near realtime whatever it
 	// was really set to. The caller falls back to the saved preference, which is
 	// written by the same command that created the task.
-	state.Running = taskStatus(string(output))
+	// Both from the one probe. schtasks reports "Ready" for an armed task and
+	// "Running" only during the seconds a sweep is actually executing, and both
+	// words are localised, so there is no reading of this output that separates
+	// armed from enabled on a machine that is not in English. Claiming to know
+	// the difference is what rejected good installs abroad.
+	live := taskEnabled(string(output))
+	state.Enabled = live
+	state.Running = live
 	return state, nil
 }
 
