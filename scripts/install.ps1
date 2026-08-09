@@ -5,6 +5,24 @@
 
 $ErrorActionPreference = "Stop"
 
+# Elevation is not something installing a per-user CLI should need, and it is
+# only checked because of Windows Defender. The binary is unsigned and freshly
+# published, so it has no reputation, and in a normal session Defender refuses
+# to let it run at all. The download succeeds, then the first invocation of it
+# fails with 0x800700E1 and the install stops half finished. Running elevated
+# avoids that. Checked before anything is downloaded so nothing is left behind.
+$elevated = (New-Object Security.Principal.WindowsPrincipal(
+    [Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole(
+    [Security.Principal.WindowsBuiltInRole]::Administrator)
+
+if (-not $elevated) {
+    Write-Host "Run this from an Administrator PowerShell." -ForegroundColor Yellow
+    Write-Host "Windows Defender blocks the newly downloaded binary from running otherwise, which leaves the install half finished."
+    # return, never exit: this script is piped into iex, and exit would close
+    # the user's shell.
+    return
+}
+
 $repo = "StackDrift-Net/stackdrift-cli"
 $arch = if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") { "arm64" } else { "amd64" }
 $binary = "stackdrift-windows-$arch.exe"
