@@ -39,6 +39,19 @@ func Update(current string, args []string) (string, error) {
 		return currentExecutable()
 	}
 
+	// A machine-wide Windows install cannot replace itself, by design: it sits in
+	// Program Files so that the Defender exclusion covering it is not also a
+	// folder anything running as the user can write to. Saying that here beats
+	// downloading the release and failing on the temp file with a message about
+	// write access.
+	if exe, err := currentExecutable(); err == nil {
+		dir := filepath.Dir(exe)
+		if probe := exeDirWritable(dir); probe != nil &&
+			classifyUnreplaceable(dir, programRoots(), probe) == updateNeedsInstaller {
+			return "", fmt.Errorf("%s is available, but %s needs administrator rights to write. Re-run the installer from an Administrator PowerShell to apply it", latest, dir)
+		}
+	}
+
 	fmt.Printf("Downloading %s ...\n", assetName(runtime.GOOS, runtime.GOARCH))
 	installed, err := fetchVerifyReplace(downloadBase, latest)
 	if err != nil {

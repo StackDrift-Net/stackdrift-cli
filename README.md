@@ -23,15 +23,36 @@ Apple Silicon automatically.
 
 ### Windows
 
-Open PowerShell and run:
+Open an **Administrator** PowerShell and run:
 
 ```
 irm https://raw.githubusercontent.com/StackDrift-Net/stackdrift-cli/main/scripts/install.ps1 | iex
 ```
 
-This installs the binary into `%LOCALAPPDATA%\Microsoft\WindowsApps`, which is
-already on your PATH, so you can run `stackdrift` from anywhere without changing
-any environment variables.
+This installs the binary into `%ProgramFiles%\StackDrift`, adds that directory to
+the machine PATH, and excludes it from Microsoft Defender scanning.
+
+The exclusion is why the install needs administrator rights. Defender treats the
+CLI as a threat: it is an unsigned binary with no reputation that registers a
+scheduled task and replaces its own executable, and the verdict comes with
+persistence remediation, so the scheduled task and its registry entries are
+deleted along with the file and the background checks stop. Excluding a directory
+only an administrator can write to costs nothing, because anyone able to put a
+file there could already turn the exclusion off. Excluding a directory inside
+your own profile would not be, which is why the binary no longer lives there.
+
+To install into your profile instead, without the exclusion:
+
+```
+$env:STACKDRIFT_PER_USER = "1"; irm https://raw.githubusercontent.com/StackDrift-Net/stackdrift-cli/main/scripts/install.ps1 | iex
+```
+
+That needs no elevation, and Defender is free to remove the binary again.
+
+Because Program Files is not writable by the account the scheduled checks run as,
+`stackdrift update` and the background auto-update cannot replace a machine-wide
+install. They report the version that is waiting and ask for the installer to be
+re-run instead. A per-user install updates itself as before.
 
 ## Updating
 

@@ -4,3 +4,5 @@ rules.md
 gh-token
 *.token
 .env
+.claude/
+.mcp.json

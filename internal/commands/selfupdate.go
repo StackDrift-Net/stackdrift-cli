@@ -101,23 +101,6 @@ func selfUpdate(scheduled bool) (rerun bool, installed string) {
 		return false, ""
 	}
 
-	if err := exeDirWritable(filepath.Dir(exe)); err != nil {
-		ui.Println("Auto-update is on, but " + filepath.Dir(exe) + " cannot be written: " + err.Error())
-
-		// Only a cause that cannot clear itself is remembered. A full disk or a
-		// momentarily missing directory would otherwise turn auto-update off
-		// for the life of the install with no sign of why.
-		if permanentlyUnwritable(err) {
-			ui.Println("Nothing will be replaced. Reinstall the CLI somewhere writable, or turn this off with 'stackdrift service auto-update off'.")
-			_ = config.UpdateWatch(func(s *config.WatchSettings) { s.UpdateBlocked = err.Error() })
-			return false, ""
-		}
-
-		stamped := time.Now().UTC().Format(time.RFC3339)
-		_ = config.UpdateWatch(func(s *config.WatchSettings) { s.LastUpdateAt = stamped })
-		return false, ""
-	}
-
 	// Stamped whether or not anything is replaced, and before the outcome is
 	// known, so a release feed that is down does not produce one attempt per
 	// sweep.
@@ -134,6 +117,16 @@ func selfUpdate(scheduled bool) (rerun bool, installed string) {
 		return false, ""
 	}
 
+	// The writability probe comes AFTER the release is known to be newer, not
+	// before it. A machine already on the latest build was never going to write
+	// to this directory, so probing first could mark it unreplaceable over a
+	// transient failure that had no bearing on anything, and the message a
+	// managed install needs to print names the version that is waiting.
+	if err := exeDirWritable(filepath.Dir(exe)); err != nil {
+		reportUnreplaceable(filepath.Dir(exe), latest, err)
+		return false, ""
+	}
+
 	installed, err = fetchVerifyReplace(updateBase("STACKDRIFT_UPDATE_DOWNLOAD", "https://github.com"), latest)
 	if err != nil {
 		ui.Println("Update to " + latest + " failed: " + err.Error())
@@ -143,6 +136,34 @@ func selfUpdate(scheduled bool) (rerun bool, installed string) {
 	_ = config.UpdateWatch(func(s *config.WatchSettings) { s.UpdatedTo = normalizeVersion(latest) })
 	ui.Println("Updated to " + latest + ".")
 	return true, installed
+}
+
+// reportUnreplaceable says why an update that is waiting cannot be applied, and
+// decides whether to stop asking.
+//
+// The Windows installer puts the binary under Program Files so that a Defender
+// exclusion for that directory does not also hand every process running as the
+// signed-in user a folder it can write to and have skipped. The cost is that the
+// scheduled run cannot replace its own binary any more, and the previous rule
+// would have read that as a broken install, recorded it, and quietly stopped
+// checking for the life of every Windows install. So a permission refusal in a
+// directory the installer chose is reported as work for the installer rather
+// than as a fault, and the check keeps running so the machine keeps being told.
+func reportUnreplaceable(dir, latest string, err error) {
+	switch classifyUnreplaceable(dir, programRoots(), err) {
+	case updateNeedsInstaller:
+		ui.Println(latest + " is available, and " + dir + " needs administrator rights to write.")
+		ui.Println("Re-run the installer from an Administrator PowerShell to apply it.")
+	case updateBlocked:
+		ui.Println("Auto-update is on, but " + dir + " cannot be written: " + err.Error())
+		ui.Println("Nothing will be replaced. Reinstall the CLI somewhere writable, or turn this off with 'stackdrift service auto-update off'.")
+		// Only a cause that cannot clear itself is remembered. A full disk or a
+		// momentarily missing directory would otherwise turn auto-update off for
+		// the life of the install with no sign of why.
+		_ = config.UpdateWatch(func(s *config.WatchSettings) { s.UpdateBlocked = err.Error() })
+	default:
+		ui.Println("Auto-update is on, but " + dir + " cannot be written: " + err.Error())
+	}
 }
 
 // residentHandover replaces the binary of a watcher that stays running, and
